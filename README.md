@@ -18,13 +18,13 @@ The layout mirrors `radiant_install`: platform-specific install scripts plus Git
 macOS:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/vnijs/ai_install/main/macos-install-ai-tools.sh | bash
+curl -sSL https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/macos-install-ai-tools.sh | bash
 ```
 
 Windows PowerShell:
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/vnijs/ai_install/main/windows-install-ai-tools.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/windows-install-ai-tools.ps1 | iex
 ```
 
 ## Notes
@@ -37,6 +37,7 @@ iwr -useb https://raw.githubusercontent.com/vnijs/ai_install/main/windows-instal
 - The default managed Python version is pinned to `3.13.12` to match the server.
 - Claude Code and Codex are installed with `npm`.
 - Anthropic's current Claude Code docs list Windows support via WSL. This repo still installs the CLI on Windows, but the supported Windows workflow should be considered WSL-first.
+- The Windows installer explicitly locates the VS Code CLI after install because `code` is not reliably added to `PATH` in GitHub Actions runners.
 
 ## Scripts
 

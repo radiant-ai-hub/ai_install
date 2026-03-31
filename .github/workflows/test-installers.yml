@@ -33,7 +33,18 @@ jobs:
           gh --version
           uv --version
           python --version
-          code --version
+          $codeCommand = @(
+            "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin\code.cmd",
+            "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin\code.exe",
+            "$env:ProgramFiles\Microsoft VS Code\bin\code.cmd",
+            "$env:ProgramFiles\Microsoft VS Code\bin\code.exe",
+            "${env:ProgramFiles(x86)}\Microsoft VS Code\bin\code.cmd",
+            "${env:ProgramFiles(x86)}\Microsoft VS Code\bin\code.exe"
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $codeCommand) {
+            throw "VS Code CLI was not found after installation."
+          }
+          & $codeCommand --version
           claude --version
           codex --version
 
@@ -131,7 +142,14 @@ jobs:
           test "$(curl -I -L -s -o /dev/null -w '%{http_code}' "$VSCODE_URL")" = "200"
 
           echo "Testing Node.js latest LTS detection..."
-          NODE_VERSION=$(curl -s https://nodejs.org/dist/index.json | awk -F'"' '/"version": "v[0-9]/{version=$4} /"lts": (true|"[^"]+")/{if ($0 !~ /"lts": false/) {print version; exit}}')
+          NODE_VERSION=$(
+            curl -s https://nodejs.org/dist/index.json \
+              | tr '{' '\n' \
+              | grep '"version"' \
+              | grep -Ev '"lts":[[:space:]]*false' \
+              | sed -E 's/.*"version":[[:space:]]*"([^"]+)".*/\1/' \
+              | head -n1
+          )
           test -n "$NODE_VERSION"
           echo "$NODE_VERSION"
 

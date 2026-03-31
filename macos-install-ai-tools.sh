@@ -159,7 +159,14 @@ install_node() {
   echo "Step 3: Installing Node.js LTS..."
 
   local node_version node_pkg_url node_pkg_path
-  node_version="$(curl -s https://nodejs.org/dist/index.json | awk -F'"' '/"version": "v[0-9]/{version=$4} /"lts": (true|"[^"]+")/{if ($0 !~ /"lts": false/) {print version; exit}}')"
+  node_version="$(
+    curl -s https://nodejs.org/dist/index.json \
+      | tr '{' '\n' \
+      | grep '"version"' \
+      | grep -Ev '"lts":[[:space:]]*false' \
+      | sed -E 's/.*"version":[[:space:]]*"([^"]+)".*/\1/' \
+      | head -n1
+  )"
 
   if [[ -z "$node_version" ]]; then
     echo "   Could not determine latest Node.js LTS version."

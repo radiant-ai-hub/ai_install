@@ -1,6 +1,6 @@
 # AI Coding Tools Installation Script for Windows
 # Run the latest version with:
-# iwr -useb https://raw.githubusercontent.com/vnijs/claude_install/main/windows-install-ai-tools.ps1 | iex
+# iwr -useb https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/windows-install-ai-tools.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
@@ -36,6 +36,35 @@ function Ensure-UserPathEntry {
     }
 
     Refresh-Path
+}
+
+function Find-VSCodeCommand {
+    $candidates = @(
+        "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin\code.cmd",
+        "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin\code.exe",
+        "$env:ProgramFiles\Microsoft VS Code\bin\code.cmd",
+        "$env:ProgramFiles\Microsoft VS Code\bin\code.exe",
+        "${env:ProgramFiles(x86)}\Microsoft VS Code\bin\code.cmd",
+        "${env:ProgramFiles(x86)}\Microsoft VS Code\bin\code.exe"
+    )
+
+    foreach ($candidate in $candidates) {
+        if ($candidate -and (Test-Path $candidate)) {
+            return $candidate
+        }
+    }
+
+    return $null
+}
+
+function Ensure-VSCodeCliPath {
+    $codeCommand = Find-VSCodeCommand
+    if (-not $codeCommand) {
+        throw "Visual Studio Code installed, but the CLI could not be found in expected locations."
+    }
+
+    Ensure-UserPathEntry (Split-Path -Parent $codeCommand)
+    return $codeCommand
 }
 
 function Test-WingetPackageInstalled {
@@ -151,7 +180,7 @@ Install-OrUpgradeWingetPackage `
     -Id "Microsoft.VisualStudioCode" `
     -Name "Visual Studio Code" `
     -OverrideArgs "/VERYSILENT /MERGETASKS=!runcode,addtopath"
-Ensure-UserPathEntry "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin"
+$CodeCommand = Ensure-VSCodeCliPath
 Write-Host ""
 
 Write-Host "Step 3: Installing Node.js LTS..." -ForegroundColor Yellow
@@ -189,7 +218,7 @@ Verify-Command "npm" { npm --version | Out-Host }
 Verify-Command "gh" { gh --version | Select-Object -First 1 | Out-Host }
 Verify-Command "uv" { uv --version | Out-Host }
 Verify-Command "python" { python --version | Out-Host }
-Verify-Command "code" { code --version | Select-Object -First 1 | Out-Host }
+Verify-Command "code" { & $CodeCommand --version | Select-Object -First 1 | Out-Host }
 Verify-Command "claude" { claude --version | Out-Host }
 Verify-Command "codex" { codex --version | Out-Host }
 Write-Host ""
