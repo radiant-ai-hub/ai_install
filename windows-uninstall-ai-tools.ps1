@@ -25,9 +25,15 @@ function Winget-UninstallIfPresent {
         $output = winget list --exact --id $Id --accept-source-agreements 2>$null | Out-String
         if ($output -match [regex]::Escape($Id)) {
             winget uninstall --exact --id $Id --source winget --scope user --silent --disable-interactivity | Out-Host
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "   Warning: winget could not uninstall $Id cleanly. Continuing." -ForegroundColor Yellow
+                $global:LASTEXITCODE = 0
+            }
         }
     } catch {
     }
+
+    $global:LASTEXITCODE = 0
 }
 
 function Remove-UserPathEntry {
@@ -82,4 +88,4 @@ Remove-UserPathEntry "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin"
 Write-Host ""
 
 Write-Host "Uninstall complete." -ForegroundColor Green
-
+exit 0

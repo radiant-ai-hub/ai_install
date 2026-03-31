@@ -136,6 +136,8 @@ jobs:
           bash -n ./macos-uninstall-ai-tools.sh
 
       - name: Test script logic
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           echo "Testing VS Code ARM64 DMG URL..."
           VSCODE_URL='https://code.visualstudio.com/sha/download?build=stable&os=darwin-arm64-dmg'
@@ -154,7 +156,7 @@ jobs:
           echo "$NODE_VERSION"
 
           echo "Testing GitHub CLI macOS ARM64 asset detection..."
-          GH_URL=$(curl -s https://api.github.com/repos/cli/cli/releases/latest | grep -o 'https://[^"]*macOS_arm64.zip' | head -n1)
+          GH_URL=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/cli/cli/releases/latest | grep -o 'https://[^"]*macOS_arm64.zip' | head -n1)
           test -n "$GH_URL"
           echo "$GH_URL"
 
