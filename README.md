@@ -30,17 +30,17 @@ iwr -useb https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/windo
 ## Windows requirements
 
 - `winget` is required because Git, VS Code, and Node.js LTS are currently installed with `winget`.
-- `winget` is also required for the Microsoft Store Python install on Windows.
+- `winget` is also required for the Python `Python.Python.3.13` install on Windows.
 - The installer checks for `winget` at startup and stops with instructions if it is missing.
 - If `winget` is not available, install Microsoft's App Installer package first.
 
 ## Notes
 
 - For day-to-day Windows work with `uv` and Python, this repo treats Git Bash as the preferred interactive shell. The installer itself still runs from PowerShell.
-- The Windows installer uses `winget` for Git, VS Code, Node.js LTS, and Python from the Microsoft Store.
+- The Windows installer uses `winget` for Git, VS Code, Node.js LTS, and Python.
 - The Windows installer downloads GitHub CLI directly from the official `cli/cli` release assets, including the ARM64 build on Windows ARM devices.
-- The Windows installer uses the Microsoft Store Python app `9PNRBTZXMB4Z`, with `winget` architecture selection set to `arm64` on Windows ARM and `x64` on Intel/AMD Windows.
-- The Windows path now expects Store Python behavior, so `python` may legitimately resolve through the Windows app execution path as long as it runs Python `3.13.12`.
+- The Windows installer uses the official `winget` package `Python.Python.3.13` pinned to version `3.13.12`, with architecture selection set to `arm64` on Windows ARM and `x64` on Intel/AMD Windows.
+- On Windows, the installer verifies that `python` resolves to the actual installed Python executable and not the Windows Store alias in `WindowsApps`.
 - On Windows, the installer copies the repo's `vscode/settings.json` and `vscode/keybindings.json` into the VS Code user profile, then installs the extensions listed in `vscode/extensions.txt`.
 - On Windows, VS Code is configured to use Git Bash as the default integrated terminal.
 - On Windows, the installer also adds a Git Bash profile to Windows Terminal when a Windows Terminal settings file is present.

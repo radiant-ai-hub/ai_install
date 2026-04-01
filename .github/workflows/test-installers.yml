@@ -36,6 +36,9 @@ jobs:
           uv --version
           python --version
           $pythonCommand = (Get-Command python).Source
+          if ($pythonCommand -match 'WindowsApps') {
+            throw "python still resolves to the Windows Store alias: $pythonCommand"
+          }
           Write-Host $pythonCommand
           $pythonVersion = (python --version | Out-String).Trim()
           if ($pythonVersion -ne 'Python 3.13.12') {
@@ -117,6 +120,9 @@ jobs:
           uv --version
           python --version
           $pythonCommand = (Get-Command python).Source
+          if ($pythonCommand -match 'WindowsApps') {
+            throw "python still resolves to the Windows Store alias: $pythonCommand"
+          }
           Write-Host $pythonCommand
           $pythonVersion = (python --version | Out-String).Trim()
           if ($pythonVersion -ne 'Python 3.13.12') {
@@ -205,9 +211,9 @@ jobs:
             throw "Could not resolve Microsoft.VisualStudioCode package information."
           }
 
-          $pythonPackage = winget show --id 9PNRBTZXMB4Z --source msstore --accept-source-agreements | Out-String
-          if ($pythonPackage -notmatch "9PNRBTZXMB4Z") {
-            throw "Could not resolve Microsoft Store Python package information."
+          $pythonPackage = winget show --exact --id Python.Python.3.13 --accept-source-agreements | Out-String
+          if ($pythonPackage -notmatch "Python\.Python\.3\.13") {
+            throw "Could not resolve Python.Python.3.13 package information."
           }
 
           $release = Invoke-RestMethod -Headers @{ Authorization = "Bearer $env:GITHUB_TOKEN" } -Uri "https://api.github.com/repos/cli/cli/releases/latest"

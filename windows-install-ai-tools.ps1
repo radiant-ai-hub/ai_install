@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
 $DefaultPythonVersion = if ($env:DEFAULT_PYTHON_VERSION) { $env:DEFAULT_PYTHON_VERSION } else { "3.13.12" }
-$WindowsStorePythonId = "9PNRBTZXMB4Z"
+$PythonWingetId = "Python.Python.3.13"
 $RepoRawBase = "https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main"
 $InstallerAssetCacheDir = Join-Path $env:TEMP "ai-install-assets"
 
@@ -255,13 +255,13 @@ function Install-OrUpgradeWingetPackage {
     & winget @installArgs
 }
 
-function Install-MicrosoftStorePython {
-    Write-Host "Step 6: Installing Python $DefaultPythonVersion from Microsoft Store..." -ForegroundColor Yellow
+function Install-Python {
+    Write-Host "Step 6: Installing Python $DefaultPythonVersion..." -ForegroundColor Yellow
 
     $arch = Get-WingetArchitecture
     $installed = $false
     try {
-        $existingVersion = (python --version 2>$null | Out-String).Trim()
+        $existingVersion = (py -3.13 --version 2>$null | Out-String).Trim()
         if ($existingVersion -eq "Python $DefaultPythonVersion") {
             $installed = $true
         }
@@ -275,13 +275,17 @@ function Install-MicrosoftStorePython {
         return
     }
 
-    Write-Host "   Installing Microsoft Store Python for $arch..." -ForegroundColor Gray
+    Write-Host "   Installing Python $DefaultPythonVersion for $arch via winget..." -ForegroundColor Gray
     & winget install `
-        --id $WindowsStorePythonId `
-        --source msstore `
+        --exact `
+        --id $PythonWingetId `
+        --source winget `
+        --version $DefaultPythonVersion `
         --architecture $arch `
+        --scope user `
         --accept-package-agreements `
         --accept-source-agreements `
+        --silent `
         --disable-interactivity
 
     Refresh-Path
@@ -389,32 +393,24 @@ function Verify-Command {
 }
 
 function Ensure-PythonCommand {
-    $pythonSource = $null
     $pythonVersion = $null
     $pythonExecutable = $null
 
     for ($attempt = 1; $attempt -le 10; $attempt++) {
         Refresh-Path
-        $pythonSource = Get-CommandSource "python"
-        if ($pythonSource) {
-            try {
-                $pythonVersion = (python --version | Out-String).Trim()
-                $pythonExecutable = (python -c "import sys; print(sys.executable)" | Out-String).Trim()
-            } catch {
-                $pythonVersion = $null
-                $pythonExecutable = $null
-            }
+        try {
+            $pythonVersion = (py -3.13 --version | Out-String).Trim()
+            $pythonExecutable = (py -3.13 -c "import sys; print(sys.executable)" | Out-String).Trim()
+        } catch {
+            $pythonVersion = $null
+            $pythonExecutable = $null
         }
 
-        if ($pythonSource -and $pythonVersion -eq "Python $DefaultPythonVersion" -and $pythonExecutable) {
+        if ($pythonVersion -eq "Python $DefaultPythonVersion" -and $pythonExecutable) {
             break
         }
 
         Start-Sleep -Seconds 2
-    }
-
-    if (-not $pythonSource) {
-        throw "Python was installed, but the 'python' command is not available on PATH."
     }
 
     if ($pythonVersion -ne "Python $DefaultPythonVersion") {
@@ -423,6 +419,27 @@ function Ensure-PythonCommand {
 
     if (-not $pythonExecutable) {
         throw "Could not determine the installed Python executable path."
+    }
+
+    $pythonDir = Split-Path -Parent $pythonExecutable
+    Ensure-UserPathEntry $pythonDir -Prepend
+    $pythonSource = $null
+
+    for ($attempt = 1; $attempt -le 10; $attempt++) {
+        Refresh-Path
+        $pythonSource = Get-CommandSource "python"
+        if ($pythonSource -and $pythonSource -eq $pythonExecutable) {
+            break
+        }
+        Start-Sleep -Seconds 1
+    }
+
+    if (-not $pythonSource) {
+        throw "Python $DefaultPythonVersion was installed, but the 'python' command is not available on PATH."
+    }
+
+    if ($pythonSource -ne $pythonExecutable) {
+        throw "Expected 'python' to resolve to '$pythonExecutable', but found '$pythonSource'."
     }
 
     Write-Host "   Python command source: $pythonSource" -ForegroundColor Gray
@@ -536,7 +553,7 @@ function Assert-NativeArmPython {
 
     $pythonPlatform = (& $PythonCommand -c "import sysconfig; print(sysconfig.get_platform())" | Out-String).Trim()
     if ($pythonPlatform -notmatch "arm64") {
-        throw "Expected a native ARM64 Python on Windows ARM, but uv installed '$pythonPlatform'."
+        throw "Expected a native ARM64 Python on Windows ARM, but found '$pythonPlatform'."
     }
 
     Write-Host "   Verified native ARM64 Python platform: $pythonPlatform" -ForegroundColor Gray
@@ -573,7 +590,7 @@ Write-Host ""
 Install-GitHubCli
 Install-Uv
 $PythonCommand = $null
-Install-MicrosoftStorePython
+Install-Python
 $PythonCommand = Ensure-PythonCommand
 Refresh-Path
 Write-Host ""

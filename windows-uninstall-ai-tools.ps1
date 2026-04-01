@@ -2,7 +2,7 @@
 
 $ErrorActionPreference = "SilentlyContinue"
 $ProgressPreference = "SilentlyContinue"
-$WindowsStorePythonId = "9PNRBTZXMB4Z"
+$PythonWingetId = "Python.Python.3.13"
 
 if ($env:CI -ne "true") {
     Write-Host "This removes the tools installed by this repo." -ForegroundColor Yellow
@@ -78,9 +78,9 @@ if (Get-Command npm -ErrorAction SilentlyContinue) {
 }
 Write-Host ""
 
-Write-Host "Step 2: Removing Microsoft Store Python and uv data..." -ForegroundColor Yellow
+Write-Host "Step 2: Removing Python and uv data..." -ForegroundColor Yellow
 if (Get-Command winget -ErrorAction SilentlyContinue) {
-    Winget-UninstallIfPresent -Id $WindowsStorePythonId -Source "msstore"
+    Winget-UninstallIfPresent -Id $PythonWingetId -Source "winget"
 }
 if (Get-Command uv -ErrorAction SilentlyContinue) {
     uv cache clean | Out-Host
