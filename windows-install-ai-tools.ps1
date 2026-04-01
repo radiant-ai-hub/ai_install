@@ -44,6 +44,18 @@ function Ensure-UserPathEntry {
     Refresh-Path
 }
 
+function Ensure-ProcessPathEntryFirst {
+    param([string]$Entry)
+
+    $parts = @()
+    if ($env:Path) {
+        $parts = $env:Path -split ';' | Where-Object { $_ }
+    }
+
+    $filteredParts = $parts | Where-Object { $_ -ne $Entry }
+    $env:Path = (@($Entry) + $filteredParts) -join ';'
+}
+
 function Get-WindowsArchitecture {
     $arch = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
 
@@ -423,10 +435,11 @@ function Ensure-PythonCommand {
 
     $pythonDir = Split-Path -Parent $pythonExecutable
     Ensure-UserPathEntry $pythonDir -Prepend
+    Ensure-ProcessPathEntryFirst $pythonDir
     $pythonSource = $null
 
     for ($attempt = 1; $attempt -le 10; $attempt++) {
-        Refresh-Path
+        Ensure-ProcessPathEntryFirst $pythonDir
         $pythonSource = Get-CommandSource "python"
         if ($pythonSource -and $pythonSource -eq $pythonExecutable) {
             break
