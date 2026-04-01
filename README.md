@@ -27,11 +27,18 @@ Windows PowerShell:
 iwr -useb https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/windows-install-ai-tools.ps1 | iex
 ```
 
+## Windows requirements
+
+- `winget` is required because Git, VS Code, and Node.js LTS are currently installed with `winget`.
+- The installer checks for `winget` at startup and stops with instructions if it is missing.
+- If `winget` is not available, install Microsoft's App Installer package first.
+
 ## Notes
 
 - The Windows installer uses `winget` for Git, VS Code, and Node.js LTS.
 - The Windows installer downloads GitHub CLI directly from the official `cli/cli` release assets, including the ARM64 build on Windows ARM devices.
 - On Windows ARM, the installer now asks `uv` for the native ARM64 Python `3.13.12` build explicitly instead of relying on the default platform selection.
+- After Python install, the Windows script makes sure `python` resolves to the uv-managed executable instead of the Windows Store alias in `WindowsApps`.
 - The Windows installer still requires `winget` overall because Git, VS Code, and Node.js are currently installed that way.
 - The macOS installer avoids Homebrew and downloads tools directly from official vendor sources, similar to `radiant_install`.
 - On macOS, Git comes from Xcode Command Line Tools.

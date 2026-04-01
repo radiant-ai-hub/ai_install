@@ -22,7 +22,10 @@ function Refresh-Path {
 }
 
 function Ensure-UserPathEntry {
-    param([string]$Entry)
+    param(
+        [string]$Entry,
+        [switch]$Prepend
+    )
 
     $currentUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
     $parts = @()
@@ -30,10 +33,10 @@ function Ensure-UserPathEntry {
         $parts = $currentUserPath -split ';' | Where-Object { $_ }
     }
 
-    if ($parts -notcontains $Entry) {
-        $newPath = if ($currentUserPath) { "$currentUserPath;$Entry" } else { $Entry }
-        [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
-    }
+    $filteredParts = $parts | Where-Object { $_ -ne $Entry }
+    $newParts = if ($Prepend) { @($Entry) + $filteredParts } else { $filteredParts + @($Entry) }
+    $newPath = $newParts -join ';'
+    [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
 
     Refresh-Path
 }
@@ -58,6 +61,17 @@ function Get-UvPythonRequest {
     }
 
     return $Version
+}
+
+function Get-CommandSource {
+    param([string]$Name)
+
+    $command = Get-Command $Name -ErrorAction SilentlyContinue
+    if ($command) {
+        return $command.Source
+    }
+
+    return $null
 }
 
 function Find-VSCodeCommand {
@@ -187,7 +201,7 @@ function Install-Uv {
         powershell -ExecutionPolicy Bypass -File $UvInstaller
     }
 
-    Ensure-UserPathEntry "$env:USERPROFILE\.local\bin"
+    Ensure-UserPathEntry "$env:USERPROFILE\.local\bin" -Prepend
     Refresh-Path
     Write-Host ""
 }
@@ -231,12 +245,48 @@ function Verify-Command {
     & $Script
 }
 
+function Ensure-PythonCommand {
+    $binDir = Join-Path $env:USERPROFILE ".local\bin"
+    $pythonCommand = Join-Path $binDir "python.exe"
+
+    if (-not (Test-Path $pythonCommand)) {
+        throw "Expected uv-managed python at '$pythonCommand', but it was not found."
+    }
+
+    Ensure-UserPathEntry $binDir -Prepend
+    if (-not ($env:Path -split ';' | Where-Object { $_ -eq $binDir })) {
+        $env:Path = "$binDir;$env:Path"
+    } elseif ((($env:Path -split ';') | Select-Object -First 1) -ne $binDir) {
+        $env:Path = "$binDir;$env:Path"
+    }
+
+    $pythonSource = Get-CommandSource "python"
+    if (-not $pythonSource -or $pythonSource -match 'WindowsApps') {
+        Refresh-Path
+        $env:Path = "$binDir;$env:Path"
+        $pythonSource = Get-CommandSource "python"
+    }
+
+    if (-not $pythonSource) {
+        throw "Python was installed, but the 'python' command is not available on PATH."
+    }
+
+    if ($pythonSource -match 'WindowsApps') {
+        throw "Python was installed in '$binDir', but 'python' still resolves to '$pythonSource'. Windows App Execution Aliases are taking precedence."
+    }
+
+    Write-Host "   Python command source: $pythonSource" -ForegroundColor Gray
+    return $pythonCommand
+}
+
 function Assert-NativeArmPython {
+    param([string]$PythonCommand)
+
     if ((Get-WindowsArchitecture) -ne "arm64") {
         return
     }
 
-    $pythonPlatform = (python -c "import sysconfig; print(sysconfig.get_platform())" | Out-String).Trim()
+    $pythonPlatform = (& $PythonCommand -c "import sysconfig; print(sysconfig.get_platform())" | Out-String).Trim()
     if ($pythonPlatform -notmatch "arm64") {
         throw "Expected a native ARM64 Python on Windows ARM, but uv installed '$pythonPlatform'."
     }
@@ -245,7 +295,7 @@ function Assert-NativeArmPython {
 }
 
 if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-    throw "winget is required on Windows for this installer."
+    throw "winget is required on Windows for this installer. Install Microsoft's App Installer package if winget is missing."
 }
 
 Write-Host "Step 1: Installing Git for Windows (includes Git Bash)..." -ForegroundColor Yellow
@@ -278,6 +328,7 @@ Write-Host "Step 6: Installing UV-managed Python $DefaultPythonVersion..." -Fore
 $pythonRequest = Get-UvPythonRequest -Version $DefaultPythonVersion
 Write-Host "   Requested Python target: $pythonRequest" -ForegroundColor Gray
 uv python install --default $pythonRequest | Out-Host
+$PythonCommand = Ensure-PythonCommand
 Refresh-Path
 Write-Host ""
 
@@ -294,7 +345,7 @@ Verify-Command "npm" { npm --version | Out-Host }
 Verify-Command "gh" { gh --version | Select-Object -First 1 | Out-Host }
 Verify-Command "uv" { uv --version | Out-Host }
 Verify-Command "python" { python --version | Out-Host }
-Assert-NativeArmPython
+Assert-NativeArmPython -PythonCommand $PythonCommand
 Verify-Command "code" { & $CodeCommand --version | Select-Object -First 1 | Out-Host }
 Verify-Command "claude" { claude --version | Out-Host }
 Verify-Command "codex" { codex --version | Out-Host }

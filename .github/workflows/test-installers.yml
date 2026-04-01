@@ -35,6 +35,11 @@ jobs:
           gh --version
           uv --version
           python --version
+          $pythonCommand = (Get-Command python).Source
+          if ($pythonCommand -match 'WindowsApps') {
+            throw "python still resolves to the Windows Store alias: $pythonCommand"
+          }
+          Write-Host $pythonCommand
           $pythonPlatform = (python -c "import sysconfig; print(sysconfig.get_platform())" | Out-String).Trim()
           Write-Host $pythonPlatform
           $codeCommand = @(
@@ -86,6 +91,11 @@ jobs:
           gh --version
           uv --version
           python --version
+          $pythonCommand = (Get-Command python).Source
+          if ($pythonCommand -match 'WindowsApps') {
+            throw "python still resolves to the Windows Store alias: $pythonCommand"
+          }
+          Write-Host $pythonCommand
           $pythonPlatform = (python -c "import sysconfig; print(sysconfig.get_platform())" | Out-String).Trim()
           if ($pythonPlatform -notmatch "arm64") {
             throw "Expected a native ARM64 Python on Windows ARM, got '$pythonPlatform'."
