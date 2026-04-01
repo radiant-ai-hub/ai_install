@@ -188,7 +188,6 @@ install_github_cli() {
   echo "Step 4: Installing GitHub CLI..."
 
   local arch asset_suffix release_json gh_url gh_zip extracted_dir
-  local curl_args=()
   arch="$(uname -m)"
   if [[ "$arch" == "arm64" ]]; then
     asset_suffix="macOS_arm64.zip"
@@ -197,12 +196,12 @@ install_github_cli() {
   fi
 
   if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-    curl_args=(-H "Authorization: Bearer $GITHUB_TOKEN")
+    release_json="$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/cli/cli/releases/latest)"
   elif [[ -n "${GH_TOKEN:-}" ]]; then
-    curl_args=(-H "Authorization: Bearer $GH_TOKEN")
+    release_json="$(curl -s -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/cli/cli/releases/latest)"
+  else
+    release_json="$(curl -s https://api.github.com/repos/cli/cli/releases/latest)"
   fi
-
-  release_json="$(curl -s "${curl_args[@]}" https://api.github.com/repos/cli/cli/releases/latest)"
   gh_url="$(printf '%s' "$release_json" | grep -o 'https://[^"]*'"$asset_suffix" | head -n1)"
 
   if [[ -z "$gh_url" ]]; then
