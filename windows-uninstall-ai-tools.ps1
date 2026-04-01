@@ -247,6 +247,7 @@ if (Get-Command npm -ErrorAction SilentlyContinue) {
     Uninstall-NpmGlobalPackage -PackageName "@anthropic-ai/claude-code" -CommandNames @("claude") -Prefix $npmPrefix -ModulesPath $npmModulesPath
     Uninstall-NpmGlobalPackage -PackageName "@openai/codex" -CommandNames @("codex") -Prefix $npmPrefix -ModulesPath $npmModulesPath
     Remove-UserPathEntry $npmPrefix
+    Remove-UserPathEntry "$env:APPDATA\npm"
 } else {
     Write-Host "   npm is not available. Skipping npm package removal." -ForegroundColor Gray
 }
