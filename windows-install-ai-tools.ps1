@@ -87,6 +87,43 @@ function Get-CommandSource {
     return $null
 }
 
+function Find-InstalledPythonExecutable {
+    $roots = @(
+        (Join-Path $env:LOCALAPPDATA "Programs\Python"),
+        (Join-Path $env:USERPROFILE "AppData\Local\Programs\Python"),
+        "C:\hostedtoolcache\windows\Python"
+    ) | Where-Object { $_ -and (Test-Path $_) }
+
+    $candidates = @()
+    foreach ($root in ($roots | Select-Object -Unique)) {
+        $candidates += Get-ChildItem -Path $root -Filter python.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+    }
+
+    $matches = @()
+    foreach ($candidate in ($candidates | Select-Object -Unique)) {
+        try {
+            $version = (& $candidate --version | Out-String).Trim()
+            if ($version -ne "Python $DefaultPythonVersion") {
+                continue
+            }
+
+            $platform = (& $candidate -c "import sysconfig; print(sysconfig.get_platform())" | Out-String).Trim()
+            if ((Get-WindowsArchitecture) -eq "arm64" -and $platform -notmatch "arm64") {
+                continue
+            }
+
+            $matches += [pscustomobject]@{
+                Path = $candidate
+                Platform = $platform
+                Prefer = if ($candidate -match 'hostedtoolcache') { 1 } else { 0 }
+            }
+        } catch {
+        }
+    }
+
+    return $matches | Sort-Object Prefer, Path | Select-Object -ExpandProperty Path -First 1
+}
+
 function Get-InstallerAssetPath {
     param([string]$RelativePath)
 
@@ -271,17 +308,9 @@ function Install-Python {
     Write-Host "Step 6: Installing Python $DefaultPythonVersion..." -ForegroundColor Yellow
 
     $arch = Get-WingetArchitecture
-    $installed = $false
-    try {
-        $existingVersion = (py -3.13 --version 2>$null | Out-String).Trim()
-        if ($existingVersion -eq "Python $DefaultPythonVersion") {
-            $installed = $true
-        }
-    } catch {
-        $installed = $false
-    }
+    $existingPython = Find-InstalledPythonExecutable
 
-    if ($installed) {
+    if ($existingPython) {
         Write-Host "   Python $DefaultPythonVersion already available. Skipping install." -ForegroundColor Gray
         Write-Host ""
         return
@@ -405,37 +434,27 @@ function Verify-Command {
 }
 
 function Ensure-PythonCommand {
-    $pythonVersion = $null
     $pythonExecutable = $null
 
-    for ($attempt = 1; $attempt -le 10; $attempt++) {
+    for ($attempt = 1; $attempt -le 15; $attempt++) {
         Refresh-Path
-        try {
-            $pythonVersion = (py -3.13 --version | Out-String).Trim()
-            $pythonExecutable = (py -3.13 -c "import sys; print(sys.executable)" | Out-String).Trim()
-        } catch {
-            $pythonVersion = $null
-            $pythonExecutable = $null
-        }
-
-        if ($pythonVersion -eq "Python $DefaultPythonVersion" -and $pythonExecutable) {
+        $pythonExecutable = Find-InstalledPythonExecutable
+        if ($pythonExecutable) {
             break
         }
-
         Start-Sleep -Seconds 2
     }
 
-    if ($pythonVersion -ne "Python $DefaultPythonVersion") {
-        throw "Expected Python $DefaultPythonVersion, but found '$pythonVersion'."
-    }
-
     if (-not $pythonExecutable) {
-        throw "Could not determine the installed Python executable path."
+        throw "Could not determine the installed Python $DefaultPythonVersion executable path."
     }
 
     $pythonDir = Split-Path -Parent $pythonExecutable
     Ensure-UserPathEntry $pythonDir -Prepend
     Ensure-ProcessPathEntryFirst $pythonDir
+    if ($env:GITHUB_PATH) {
+        Add-Content -Path $env:GITHUB_PATH -Value $pythonDir
+    }
     $pythonSource = $null
 
     for ($attempt = 1; $attempt -le 10; $attempt++) {
@@ -453,6 +472,11 @@ function Ensure-PythonCommand {
 
     if ($pythonSource -ne $pythonExecutable) {
         throw "Expected 'python' to resolve to '$pythonExecutable', but found '$pythonSource'."
+    }
+
+    $pythonVersion = (& $pythonExecutable --version | Out-String).Trim()
+    if ($pythonVersion -ne "Python $DefaultPythonVersion") {
+        throw "Expected Python $DefaultPythonVersion, but found '$pythonVersion'."
     }
 
     Write-Host "   Python command source: $pythonSource" -ForegroundColor Gray
