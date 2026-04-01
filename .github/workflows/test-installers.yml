@@ -99,6 +99,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run full macOS installation
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           echo "Running FULL macOS installation test..."
           export CI=true
