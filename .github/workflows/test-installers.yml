@@ -54,6 +54,28 @@ jobs:
             throw "VS Code CLI was not found after installation."
           }
           & $codeCommand --version
+          $settingsPath = Join-Path $env:APPDATA 'Code\User\settings.json'
+          $keybindingsPath = Join-Path $env:APPDATA 'Code\User\keybindings.json'
+          if (-not (Test-Path $settingsPath)) {
+            throw "VS Code settings were not copied."
+          }
+          if (-not (Test-Path $keybindingsPath)) {
+            throw "VS Code keybindings were not copied."
+          }
+          $settings = Get-Content $settingsPath -Raw | ConvertFrom-Json
+          if ($settings.'terminal.integrated.defaultProfile.windows' -ne 'Git Bash') {
+            throw "VS Code default Windows terminal is not Git Bash."
+          }
+          if (-not $settings.'terminal.integrated.profiles.windows'.'Git Bash') {
+            throw "VS Code Git Bash terminal profile was not configured."
+          }
+          $extensions = & $codeCommand --list-extensions
+          if ($extensions -notcontains 'ms-python.python') {
+            throw "VS Code Python extension was not installed."
+          }
+          if ($extensions -notcontains 'GitHub.copilot') {
+            throw "VS Code Copilot extension was not installed."
+          }
           claude --version
           codex --version
 
@@ -113,6 +135,28 @@ jobs:
             throw "VS Code CLI was not found after installation."
           }
           & $codeCommand --version
+          $settingsPath = Join-Path $env:APPDATA 'Code\User\settings.json'
+          $keybindingsPath = Join-Path $env:APPDATA 'Code\User\keybindings.json'
+          if (-not (Test-Path $settingsPath)) {
+            throw "VS Code settings were not copied."
+          }
+          if (-not (Test-Path $keybindingsPath)) {
+            throw "VS Code keybindings were not copied."
+          }
+          $settings = Get-Content $settingsPath -Raw | ConvertFrom-Json
+          if ($settings.'terminal.integrated.defaultProfile.windows' -ne 'Git Bash') {
+            throw "VS Code default Windows terminal is not Git Bash."
+          }
+          if (-not $settings.'terminal.integrated.profiles.windows'.'Git Bash') {
+            throw "VS Code Git Bash terminal profile was not configured."
+          }
+          $extensions = & $codeCommand --list-extensions
+          if ($extensions -notcontains 'ms-python.python') {
+            throw "VS Code Python extension was not installed."
+          }
+          if ($extensions -notcontains 'GitHub.copilot') {
+            throw "VS Code Copilot extension was not installed."
+          }
           claude --version
           codex --version
 

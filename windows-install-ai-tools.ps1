@@ -6,6 +6,8 @@ $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
 $DefaultPythonVersion = if ($env:DEFAULT_PYTHON_VERSION) { $env:DEFAULT_PYTHON_VERSION } else { "3.13.12" }
+$RepoRawBase = "https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main"
+$InstallerAssetCacheDir = Join-Path $env:TEMP "ai-install-assets"
 
 Write-Host "Rady School of Management @ UCSD" -ForegroundColor Cyan
 Write-Host "AI Coding Tools Installer for Windows" -ForegroundColor Cyan
@@ -72,6 +74,115 @@ function Get-CommandSource {
     }
 
     return $null
+}
+
+function Get-InstallerAssetPath {
+    param([string]$RelativePath)
+
+    $relativePath = $RelativePath -replace '\\', '/'
+    $localCandidates = @()
+
+    if ($PSScriptRoot) {
+        $localCandidates += (Join-Path $PSScriptRoot $relativePath)
+    }
+
+    $localCandidates += (Join-Path (Get-Location).Path $relativePath)
+
+    foreach ($candidate in $localCandidates | Select-Object -Unique) {
+        if ($candidate -and (Test-Path $candidate)) {
+            return $candidate
+        }
+    }
+
+    $destination = Join-Path $InstallerAssetCacheDir ($relativePath -replace '[\\/]', '_')
+    if (-not (Test-Path $destination)) {
+        New-Item -ItemType Directory -Path $InstallerAssetCacheDir -Force | Out-Null
+        $uri = "$RepoRawBase/$relativePath"
+        Invoke-WebRequest -Uri $uri -OutFile $destination
+    }
+
+    return $destination
+}
+
+function New-JsonObject {
+    return [pscustomobject]@{}
+}
+
+function Set-JsonProperty {
+    param(
+        [object]$Object,
+        [string]$Name,
+        [object]$Value
+    )
+
+    $property = $Object.PSObject.Properties[$Name]
+    if ($property) {
+        $property.Value = $Value
+    } else {
+        $Object | Add-Member -NotePropertyName $Name -NotePropertyValue $Value
+    }
+}
+
+function Get-OrCreateJsonObjectProperty {
+    param(
+        [object]$Object,
+        [string]$Name
+    )
+
+    $property = $Object.PSObject.Properties[$Name]
+    if ($property -and $property.Value) {
+        return $property.Value
+    }
+
+    $child = New-JsonObject
+    Set-JsonProperty -Object $Object -Name $Name -Value $child
+    return $child
+}
+
+function Read-JsonFile {
+    param([string]$Path)
+
+    return (Get-Content $Path -Raw | ConvertFrom-Json)
+}
+
+function Write-JsonFile {
+    param(
+        [string]$Path,
+        [object]$Object
+    )
+
+    New-Item -ItemType Directory -Path (Split-Path -Parent $Path) -Force | Out-Null
+    $Object | ConvertTo-Json -Depth 32 | Set-Content -Path $Path -Encoding UTF8
+}
+
+function Backup-FileIfPresent {
+    param([string]$Path)
+
+    if (-not (Test-Path $Path)) {
+        return
+    }
+
+    $backupPath = "$Path.ai-install.backup"
+    if (-not (Test-Path $backupPath)) {
+        Copy-Item -Path $Path -Destination $backupPath -Force
+    }
+}
+
+function Find-GitBashExecutable {
+    $candidates = @(
+        "$env:ProgramFiles\Git\bin\bash.exe",
+        "$env:ProgramFiles\Git\git-bash.exe",
+        "${env:ProgramFiles(x86)}\Git\bin\bash.exe",
+        "${env:ProgramFiles(x86)}\Git\git-bash.exe"
+    )
+
+    foreach ($candidate in $candidates) {
+        if ($candidate -and (Test-Path $candidate)) {
+            return $candidate
+        }
+    }
+
+    throw "Git Bash was not found after installing Git for Windows."
 }
 
 function Find-VSCodeCommand {
@@ -279,6 +390,103 @@ function Ensure-PythonCommand {
     return $pythonCommand
 }
 
+function Configure-VSCodeUserSetup {
+    param(
+        [string]$CodeCommand,
+        [string]$GitBashPath,
+        [string]$PythonCommand
+    )
+
+    Write-Host "Step 8: Configuring VS Code..." -ForegroundColor Yellow
+
+    $settingsSource = Get-InstallerAssetPath "vscode/settings.json"
+    $keybindingsSource = Get-InstallerAssetPath "vscode/keybindings.json"
+    $extensionsSource = Get-InstallerAssetPath "vscode/extensions.txt"
+    $userDir = Join-Path $env:APPDATA "Code\User"
+    $settingsTarget = Join-Path $userDir "settings.json"
+    $keybindingsTarget = Join-Path $userDir "keybindings.json"
+
+    New-Item -ItemType Directory -Path $userDir -Force | Out-Null
+    Backup-FileIfPresent $settingsTarget
+    Backup-FileIfPresent $keybindingsTarget
+
+    Copy-Item -Path $settingsSource -Destination $settingsTarget -Force
+    Copy-Item -Path $keybindingsSource -Destination $keybindingsTarget -Force
+
+    $settings = Read-JsonFile $settingsTarget
+    Set-JsonProperty -Object $settings -Name "terminal.integrated.defaultProfile.windows" -Value "Git Bash"
+    Set-JsonProperty -Object $settings -Name "python.defaultInterpreterPath" -Value $PythonCommand
+
+    $windowsProfiles = Get-OrCreateJsonObjectProperty -Object $settings -Name "terminal.integrated.profiles.windows"
+    $gitBashProfile = [pscustomobject]@{
+        path = $GitBashPath
+        args = @("--login", "-i")
+        icon = "terminal-bash"
+    }
+    Set-JsonProperty -Object $windowsProfiles -Name "Git Bash" -Value $gitBashProfile
+    Write-JsonFile -Path $settingsTarget -Object $settings
+
+    foreach ($extension in (Get-Content $extensionsSource | Where-Object { $_ -and -not $_.StartsWith("#") })) {
+        Write-Host "   Installing VS Code extension: $extension" -ForegroundColor Gray
+        & $CodeCommand --install-extension $extension --force | Out-Host
+    }
+
+    Write-Host ""
+}
+
+function Configure-WindowsTerminalGitBash {
+    param([string]$GitBashPath)
+
+    $settingsPaths = @(
+        "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json",
+        "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\LocalState\settings.json"
+    )
+
+    $configuredAny = $false
+    foreach ($settingsPath in $settingsPaths) {
+        if (-not (Test-Path $settingsPath)) {
+            continue
+        }
+
+        Write-Host "Step 9: Configuring Windows Terminal..." -ForegroundColor Yellow
+        Backup-FileIfPresent $settingsPath
+
+        $settings = Read-JsonFile $settingsPath
+        $profiles = Get-OrCreateJsonObjectProperty -Object $settings -Name "profiles"
+        $profileListProperty = $profiles.PSObject.Properties["list"]
+        if (-not $profileListProperty -or -not $profileListProperty.Value) {
+            $profileList = @()
+        } else {
+            $profileList = @($profileListProperty.Value)
+        }
+
+        $gitBashGuid = "{1d5d5d38-4f2a-4b7f-9c4c-8f1b0d3b95e2}"
+        $gitBashProfile = [pscustomobject]@{
+            guid = $gitBashGuid
+            name = "Git Bash"
+            commandline = "`"$GitBashPath`" --login -i"
+            startingDirectory = "%USERPROFILE%"
+            hidden = $false
+        }
+
+        $filteredProfiles = @($profileList | Where-Object {
+            $_.guid -ne $gitBashGuid -and $_.name -ne "Git Bash"
+        })
+        $filteredProfiles += $gitBashProfile
+        Set-JsonProperty -Object $profiles -Name "list" -Value $filteredProfiles
+        Write-JsonFile -Path $settingsPath -Object $settings
+        Write-Host "   Added Git Bash profile to Windows Terminal: $settingsPath" -ForegroundColor Gray
+        Write-Host ""
+        $configuredAny = $true
+    }
+
+    if (-not $configuredAny) {
+        Write-Host "Step 9: Configuring Windows Terminal..." -ForegroundColor Yellow
+        Write-Host "   Windows Terminal settings were not found. Skipping profile setup." -ForegroundColor Gray
+        Write-Host ""
+    }
+}
+
 function Assert-NativeArmPython {
     param([string]$PythonCommand)
 
@@ -303,6 +511,7 @@ Install-OrUpgradeWingetPackage `
     -Id "Git.Git" `
     -Name "Git for Windows" `
     -OverrideArgs "/VERYSILENT /NORESTART"
+$GitBashPath = Find-GitBashExecutable
 Write-Host ""
 
 Write-Host "Step 2: Installing Visual Studio Code..." -ForegroundColor Yellow
@@ -337,7 +546,10 @@ Install-NpmGlobalPackage -PackageName "@anthropic-ai/claude-code" -CommandName "
 Install-NpmGlobalPackage -PackageName "@openai/codex" -CommandName "codex"
 Write-Host ""
 
-Write-Host "Step 8: Verifying installed tools..." -ForegroundColor Yellow
+Configure-VSCodeUserSetup -CodeCommand $CodeCommand -GitBashPath $GitBashPath -PythonCommand $PythonCommand
+Configure-WindowsTerminalGitBash -GitBashPath $GitBashPath
+
+Write-Host "Step 10: Verifying installed tools..." -ForegroundColor Yellow
 Verify-Command "git" { git --version | Out-Host }
 Verify-Command "bash" { bash --version | Select-Object -First 1 | Out-Host }
 Verify-Command "node" { node --version | Out-Host }
