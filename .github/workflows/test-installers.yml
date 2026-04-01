@@ -70,11 +70,13 @@ jobs:
             throw "VS Code Git Bash terminal profile was not configured."
           }
           $extensions = @((& $codeCommand --list-extensions) | ForEach-Object { $_.Trim().ToLowerInvariant() })
+          $copilotExtensions = @($extensions | Where-Object { $_ -like 'github.copilot*' })
+          Write-Host ($copilotExtensions -join ', ')
           if ($extensions -notcontains 'ms-python.python') {
             throw "VS Code Python extension was not installed."
           }
-          if ($extensions -notcontains 'github.copilot') {
-            throw "VS Code Copilot extension was not installed."
+          if ($copilotExtensions.Count -eq 0) {
+            throw "No GitHub Copilot-related VS Code extensions were installed."
           }
           claude --version
           codex --version
@@ -151,11 +153,13 @@ jobs:
             throw "VS Code Git Bash terminal profile was not configured."
           }
           $extensions = @((& $codeCommand --list-extensions) | ForEach-Object { $_.Trim().ToLowerInvariant() })
+          $copilotExtensions = @($extensions | Where-Object { $_ -like 'github.copilot*' })
+          Write-Host ($copilotExtensions -join ', ')
           if ($extensions -notcontains 'ms-python.python') {
             throw "VS Code Python extension was not installed."
           }
-          if ($extensions -notcontains 'github.copilot') {
-            throw "VS Code Copilot extension was not installed."
+          if ($copilotExtensions.Count -eq 0) {
+            throw "No GitHub Copilot-related VS Code extensions were installed."
           }
           claude --version
           codex --version

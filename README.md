@@ -43,6 +43,7 @@ iwr -useb https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/windo
 - On Windows, the installer copies the repo's `vscode/settings.json` and `vscode/keybindings.json` into the VS Code user profile, then installs the extensions listed in `vscode/extensions.txt`.
 - On Windows, VS Code is configured to use Git Bash as the default integrated terminal.
 - On Windows, the installer also adds a Git Bash profile to Windows Terminal when a Windows Terminal settings file is present.
+- On current VS Code builds, Copilot-related functionality may show up as built-in AI features plus `github.copilot-chat`, even when `github.copilot` is requested from the extensions list.
 - The Windows installer still requires `winget` overall because Git, VS Code, and Node.js are currently installed that way.
 - The macOS installer avoids Homebrew and downloads tools directly from official vendor sources, similar to `radiant_install`.
 - On macOS, Git comes from Xcode Command Line Tools.
