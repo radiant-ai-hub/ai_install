@@ -36,10 +36,11 @@ jobs:
           uv --version
           python --version
           $pythonCommand = (Get-Command python).Source
-          if ($pythonCommand -match 'WindowsApps') {
-            throw "python still resolves to the Windows Store alias: $pythonCommand"
-          }
           Write-Host $pythonCommand
+          $pythonVersion = (python --version | Out-String).Trim()
+          if ($pythonVersion -ne 'Python 3.13.12') {
+            throw "Expected Python 3.13.12, got '$pythonVersion'."
+          }
           $pythonPlatform = (python -c "import sysconfig; print(sysconfig.get_platform())" | Out-String).Trim()
           Write-Host $pythonPlatform
           $codeCommand = @(
@@ -116,10 +117,11 @@ jobs:
           uv --version
           python --version
           $pythonCommand = (Get-Command python).Source
-          if ($pythonCommand -match 'WindowsApps') {
-            throw "python still resolves to the Windows Store alias: $pythonCommand"
-          }
           Write-Host $pythonCommand
+          $pythonVersion = (python --version | Out-String).Trim()
+          if ($pythonVersion -ne 'Python 3.13.12') {
+            throw "Expected Python 3.13.12, got '$pythonVersion'."
+          }
           $pythonPlatform = (python -c "import sysconfig; print(sysconfig.get_platform())" | Out-String).Trim()
           if ($pythonPlatform -notmatch "arm64") {
             throw "Expected a native ARM64 Python on Windows ARM, got '$pythonPlatform'."
@@ -201,6 +203,11 @@ jobs:
           $vscodePackage = winget show --exact --id Microsoft.VisualStudioCode --accept-source-agreements | Out-String
           if ($vscodePackage -notmatch "Microsoft\.VisualStudioCode") {
             throw "Could not resolve Microsoft.VisualStudioCode package information."
+          }
+
+          $pythonPackage = winget show --id 9PNRBTZXMB4Z --source msstore --accept-source-agreements | Out-String
+          if ($pythonPackage -notmatch "9PNRBTZXMB4Z") {
+            throw "Could not resolve Microsoft Store Python package information."
           }
 
           $release = Invoke-RestMethod -Headers @{ Authorization = "Bearer $env:GITHUB_TOKEN" } -Uri "https://api.github.com/repos/cli/cli/releases/latest"

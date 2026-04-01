@@ -6,6 +6,7 @@ $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
 $DefaultPythonVersion = if ($env:DEFAULT_PYTHON_VERSION) { $env:DEFAULT_PYTHON_VERSION } else { "3.13.12" }
+$WindowsStorePythonId = "9PNRBTZXMB4Z"
 $RepoRawBase = "https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main"
 $InstallerAssetCacheDir = Join-Path $env:TEMP "ai-install-assets"
 
@@ -54,15 +55,13 @@ function Get-WindowsArchitecture {
     }
 }
 
-function Get-UvPythonRequest {
-    param([string]$Version)
-
-    $arch = Get-WindowsArchitecture
-    if ($arch -eq "arm64") {
-        return "cpython-$Version-windows-aarch64-none"
+function Get-WingetArchitecture {
+    switch (Get-WindowsArchitecture) {
+        "arm64" { return "arm64" }
+        "amd64" { return "x64" }
+        "386" { return "x86" }
+        default { throw "Unsupported winget architecture." }
     }
-
-    return $Version
 }
 
 function Get-CommandSource {
@@ -256,6 +255,39 @@ function Install-OrUpgradeWingetPackage {
     & winget @installArgs
 }
 
+function Install-MicrosoftStorePython {
+    Write-Host "Step 6: Installing Python $DefaultPythonVersion from Microsoft Store..." -ForegroundColor Yellow
+
+    $arch = Get-WingetArchitecture
+    $installed = $false
+    try {
+        $existingVersion = (python --version 2>$null | Out-String).Trim()
+        if ($existingVersion -eq "Python $DefaultPythonVersion") {
+            $installed = $true
+        }
+    } catch {
+        $installed = $false
+    }
+
+    if ($installed) {
+        Write-Host "   Python $DefaultPythonVersion already available. Skipping install." -ForegroundColor Gray
+        Write-Host ""
+        return
+    }
+
+    Write-Host "   Installing Microsoft Store Python for $arch..." -ForegroundColor Gray
+    & winget install `
+        --id $WindowsStorePythonId `
+        --source msstore `
+        --architecture $arch `
+        --accept-package-agreements `
+        --accept-source-agreements `
+        --disable-interactivity
+
+    Refresh-Path
+    Write-Host ""
+}
+
 function Install-GitHubCli {
     Write-Host "Step 4: Installing GitHub CLI..." -ForegroundColor Yellow
 
@@ -357,37 +389,45 @@ function Verify-Command {
 }
 
 function Ensure-PythonCommand {
-    $binDir = Join-Path $env:USERPROFILE ".local\bin"
-    $pythonCommand = Join-Path $binDir "python.exe"
+    $pythonSource = $null
+    $pythonVersion = $null
+    $pythonExecutable = $null
 
-    if (-not (Test-Path $pythonCommand)) {
-        throw "Expected uv-managed python at '$pythonCommand', but it was not found."
-    }
-
-    Ensure-UserPathEntry $binDir -Prepend
-    if (-not ($env:Path -split ';' | Where-Object { $_ -eq $binDir })) {
-        $env:Path = "$binDir;$env:Path"
-    } elseif ((($env:Path -split ';') | Select-Object -First 1) -ne $binDir) {
-        $env:Path = "$binDir;$env:Path"
-    }
-
-    $pythonSource = Get-CommandSource "python"
-    if (-not $pythonSource -or $pythonSource -match 'WindowsApps') {
+    for ($attempt = 1; $attempt -le 10; $attempt++) {
         Refresh-Path
-        $env:Path = "$binDir;$env:Path"
         $pythonSource = Get-CommandSource "python"
+        if ($pythonSource) {
+            try {
+                $pythonVersion = (python --version | Out-String).Trim()
+                $pythonExecutable = (python -c "import sys; print(sys.executable)" | Out-String).Trim()
+            } catch {
+                $pythonVersion = $null
+                $pythonExecutable = $null
+            }
+        }
+
+        if ($pythonSource -and $pythonVersion -eq "Python $DefaultPythonVersion" -and $pythonExecutable) {
+            break
+        }
+
+        Start-Sleep -Seconds 2
     }
 
     if (-not $pythonSource) {
         throw "Python was installed, but the 'python' command is not available on PATH."
     }
 
-    if ($pythonSource -match 'WindowsApps') {
-        throw "Python was installed in '$binDir', but 'python' still resolves to '$pythonSource'. Windows App Execution Aliases are taking precedence."
+    if ($pythonVersion -ne "Python $DefaultPythonVersion") {
+        throw "Expected Python $DefaultPythonVersion, but found '$pythonVersion'."
+    }
+
+    if (-not $pythonExecutable) {
+        throw "Could not determine the installed Python executable path."
     }
 
     Write-Host "   Python command source: $pythonSource" -ForegroundColor Gray
-    return $pythonCommand
+    Write-Host "   Python executable: $pythonExecutable" -ForegroundColor Gray
+    return $pythonExecutable
 }
 
 function Configure-VSCodeUserSetup {
@@ -532,11 +572,8 @@ Write-Host ""
 
 Install-GitHubCli
 Install-Uv
-
-Write-Host "Step 6: Installing UV-managed Python $DefaultPythonVersion..." -ForegroundColor Yellow
-$pythonRequest = Get-UvPythonRequest -Version $DefaultPythonVersion
-Write-Host "   Requested Python target: $pythonRequest" -ForegroundColor Gray
-uv python install --default $pythonRequest | Out-Host
+$PythonCommand = $null
+Install-MicrosoftStorePython
 $PythonCommand = Ensure-PythonCommand
 Refresh-Path
 Write-Host ""

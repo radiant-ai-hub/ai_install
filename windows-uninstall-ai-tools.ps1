@@ -2,6 +2,7 @@
 
 $ErrorActionPreference = "SilentlyContinue"
 $ProgressPreference = "SilentlyContinue"
+$WindowsStorePythonId = "9PNRBTZXMB4Z"
 
 if ($env:CI -ne "true") {
     Write-Host "This removes the tools installed by this repo." -ForegroundColor Yellow
@@ -19,12 +20,25 @@ function Refresh-Path {
 }
 
 function Winget-UninstallIfPresent {
-    param([string]$Id)
+    param(
+        [string]$Id,
+        [string]$Source = "winget"
+    )
 
     try {
-        $output = winget list --exact --id $Id --accept-source-agreements 2>$null | Out-String
+        $output = winget list --id $Id --source $Source --accept-source-agreements 2>$null | Out-String
         if ($output -match [regex]::Escape($Id)) {
-            winget uninstall --exact --id $Id --source winget --scope user --silent --disable-interactivity | Out-Host
+            $uninstallArgs = @(
+                "uninstall",
+                "--id", $Id,
+                "--source", $Source,
+                "--silent",
+                "--disable-interactivity"
+            )
+            if ($Source -eq "winget") {
+                $uninstallArgs += @("--exact", "--scope", "user")
+            }
+            & winget @uninstallArgs | Out-Host
             if ($LASTEXITCODE -ne 0) {
                 Write-Host "   Warning: winget could not uninstall $Id cleanly. Continuing." -ForegroundColor Yellow
                 $global:LASTEXITCODE = 0
@@ -64,9 +78,11 @@ if (Get-Command npm -ErrorAction SilentlyContinue) {
 }
 Write-Host ""
 
-Write-Host "Step 2: Removing UV-managed Python and uv data..." -ForegroundColor Yellow
+Write-Host "Step 2: Removing Microsoft Store Python and uv data..." -ForegroundColor Yellow
+if (Get-Command winget -ErrorAction SilentlyContinue) {
+    Winget-UninstallIfPresent -Id $WindowsStorePythonId -Source "msstore"
+}
 if (Get-Command uv -ErrorAction SilentlyContinue) {
-    uv python uninstall --all | Out-Host
     uv cache clean | Out-Host
 }
 Remove-IfPresent "$env:USERPROFILE\.local\bin\uv.exe"
