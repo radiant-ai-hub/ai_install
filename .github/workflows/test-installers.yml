@@ -69,11 +69,11 @@ jobs:
           if (-not $settings.'terminal.integrated.profiles.windows'.'Git Bash') {
             throw "VS Code Git Bash terminal profile was not configured."
           }
-          $extensions = & $codeCommand --list-extensions
+          $extensions = @((& $codeCommand --list-extensions) | ForEach-Object { $_.Trim().ToLowerInvariant() })
           if ($extensions -notcontains 'ms-python.python') {
             throw "VS Code Python extension was not installed."
           }
-          if ($extensions -notcontains 'GitHub.copilot') {
+          if ($extensions -notcontains 'github.copilot') {
             throw "VS Code Copilot extension was not installed."
           }
           claude --version
@@ -150,11 +150,11 @@ jobs:
           if (-not $settings.'terminal.integrated.profiles.windows'.'Git Bash') {
             throw "VS Code Git Bash terminal profile was not configured."
           }
-          $extensions = & $codeCommand --list-extensions
+          $extensions = @((& $codeCommand --list-extensions) | ForEach-Object { $_.Trim().ToLowerInvariant() })
           if ($extensions -notcontains 'ms-python.python') {
             throw "VS Code Python extension was not installed."
           }
-          if ($extensions -notcontains 'GitHub.copilot') {
+          if ($extensions -notcontains 'github.copilot') {
             throw "VS Code Copilot extension was not installed."
           }
           claude --version
