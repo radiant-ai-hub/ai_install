@@ -31,6 +31,7 @@ iwr -useb https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/windo
 
 - The Windows installer uses `winget` for Git, VS Code, and Node.js LTS.
 - The Windows installer downloads GitHub CLI directly from the official `cli/cli` release assets, including the ARM64 build on Windows ARM devices.
+- On Windows ARM, the installer now asks `uv` for the native ARM64 Python `3.13.12` build explicitly instead of relying on the default platform selection.
 - The Windows installer still requires `winget` overall because Git, VS Code, and Node.js are currently installed that way.
 - The macOS installer avoids Homebrew and downloads tools directly from official vendor sources, similar to `radiant_install`.
 - On macOS, Git comes from Xcode Command Line Tools.

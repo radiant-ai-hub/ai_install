@@ -49,6 +49,17 @@ function Get-WindowsArchitecture {
     }
 }
 
+function Get-UvPythonRequest {
+    param([string]$Version)
+
+    $arch = Get-WindowsArchitecture
+    if ($arch -eq "arm64") {
+        return "cpython-$Version-windows-aarch64-none"
+    }
+
+    return $Version
+}
+
 function Find-VSCodeCommand {
     $candidates = @(
         "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin\code.cmd",
@@ -220,6 +231,19 @@ function Verify-Command {
     & $Script
 }
 
+function Assert-NativeArmPython {
+    if ((Get-WindowsArchitecture) -ne "arm64") {
+        return
+    }
+
+    $pythonPlatform = (python -c "import sysconfig; print(sysconfig.get_platform())" | Out-String).Trim()
+    if ($pythonPlatform -notmatch "arm64") {
+        throw "Expected a native ARM64 Python on Windows ARM, but uv installed '$pythonPlatform'."
+    }
+
+    Write-Host "   Verified native ARM64 Python platform: $pythonPlatform" -ForegroundColor Gray
+}
+
 if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
     throw "winget is required on Windows for this installer."
 }
@@ -251,7 +275,9 @@ Install-GitHubCli
 Install-Uv
 
 Write-Host "Step 6: Installing UV-managed Python $DefaultPythonVersion..." -ForegroundColor Yellow
-uv python install --default $DefaultPythonVersion | Out-Host
+$pythonRequest = Get-UvPythonRequest -Version $DefaultPythonVersion
+Write-Host "   Requested Python target: $pythonRequest" -ForegroundColor Gray
+uv python install --default $pythonRequest | Out-Host
 Refresh-Path
 Write-Host ""
 
@@ -268,6 +294,7 @@ Verify-Command "npm" { npm --version | Out-Host }
 Verify-Command "gh" { gh --version | Select-Object -First 1 | Out-Host }
 Verify-Command "uv" { uv --version | Out-Host }
 Verify-Command "python" { python --version | Out-Host }
+Assert-NativeArmPython
 Verify-Command "code" { & $CodeCommand --version | Select-Object -First 1 | Out-Host }
 Verify-Command "claude" { claude --version | Out-Host }
 Verify-Command "codex" { codex --version | Out-Host }
