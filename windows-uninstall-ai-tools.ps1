@@ -23,6 +23,16 @@ function Reset-LastExitCode {
     $global:LASTEXITCODE = 0
 }
 
+function Normalize-PathEntry {
+    param([string]$PathEntry)
+
+    if (-not $PathEntry) {
+        return $null
+    }
+
+    return $PathEntry.Trim().TrimEnd('\').ToLowerInvariant()
+}
+
 function Winget-UninstallIfPresent {
     param(
         [string]$Id,
@@ -30,23 +40,31 @@ function Winget-UninstallIfPresent {
     )
 
     try {
-        $output = winget list --id $Id --source $Source --accept-source-agreements 2>$null | Out-String
-        if ($output -match [regex]::Escape($Id)) {
-            $uninstallArgs = @(
-                "uninstall",
-                "--id", $Id,
-                "--source", $Source,
-                "--silent",
-                "--disable-interactivity"
-            )
-            if ($Source -eq "winget") {
-                $uninstallArgs += @("--exact", "--scope", "user")
-            }
-            & winget @uninstallArgs | Out-Host
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host "   Warning: winget could not uninstall $Id cleanly. Continuing." -ForegroundColor Yellow
-                Reset-LastExitCode
-            }
+        $uninstallArgs = @(
+            "uninstall",
+            "--id", $Id,
+            "--source", $Source,
+            "--silent",
+            "--disable-interactivity"
+        )
+        if ($Source -eq "winget") {
+            $uninstallArgs += @("--exact", "--scope", "user")
+        }
+
+        $output = (& winget @uninstallArgs 2>&1 | Out-String)
+        if ($output) {
+            Write-Host $output.TrimEnd()
+        }
+
+        if ($output -match 'No installed package found matching input criteria') {
+            Write-Host "   $Id is not installed. Skipping." -ForegroundColor Gray
+            Reset-LastExitCode
+            return
+        }
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "   Warning: winget could not uninstall $Id cleanly. Continuing." -ForegroundColor Yellow
+            Reset-LastExitCode
         }
     } catch {
     }
@@ -62,7 +80,10 @@ function Remove-UserPathEntry {
         return
     }
 
-    $newPath = ($currentUserPath -split ';' | Where-Object { $_ -and $_ -ne $Entry }) -join ';'
+    $normalizedEntry = Normalize-PathEntry $Entry
+    $newPath = ($currentUserPath -split ';' | Where-Object {
+        $_ -and (Normalize-PathEntry $_) -ne $normalizedEntry
+    }) -join ';'
     [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
     Refresh-Path
 }
@@ -202,8 +223,9 @@ function Remove-UserPathEntriesMatching {
         }
 
         $shouldRemove = $false
+        $normalizedEntry = Normalize-PathEntry $entry
         foreach ($pattern in $Patterns) {
-            if ($entry -match $pattern) {
+            if ($normalizedEntry -match $pattern) {
                 $shouldRemove = $true
                 break
             }
