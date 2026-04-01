@@ -99,20 +99,20 @@ function Find-InstalledPythonExecutable {
         $candidates += Get-ChildItem -Path $root -Filter python.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
     }
 
-    $matches = @()
+    $pythonMatches = @()
     foreach ($candidate in ($candidates | Select-Object -Unique)) {
         try {
-            $version = (& $candidate --version | Out-String).Trim()
+            $version = (& $candidate --version 2>$null | Out-String).Trim()
             if ($version -ne "Python $DefaultPythonVersion") {
                 continue
             }
 
-            $platform = (& $candidate -c "import sysconfig; print(sysconfig.get_platform())" | Out-String).Trim()
+            $platform = (& $candidate -c "import sysconfig; print(sysconfig.get_platform())" 2>$null | Out-String).Trim()
             if ((Get-WindowsArchitecture) -eq "arm64" -and $platform -notmatch "arm64") {
                 continue
             }
 
-            $matches += [pscustomobject]@{
+            $pythonMatches += [pscustomobject]@{
                 Path = $candidate
                 Platform = $platform
                 Prefer = if ($candidate -match 'hostedtoolcache') { 1 } else { 0 }
@@ -121,7 +121,7 @@ function Find-InstalledPythonExecutable {
         }
     }
 
-    return $matches | Sort-Object Prefer, Path | Select-Object -ExpandProperty Path -First 1
+    return $pythonMatches | Sort-Object Prefer, Path | Select-Object -ExpandProperty Path -First 1
 }
 
 function Get-InstallerAssetPath {
