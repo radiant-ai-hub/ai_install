@@ -91,6 +91,46 @@ jobs:
           $env:CI = "true"
           .\windows-uninstall-ai-tools.ps1
 
+      - name: Verify uninstall cleanup
+        shell: powershell
+        run: |
+          $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+          foreach ($forbiddenEntry in @(
+            "$env:APPDATA\npm",
+            "$env:USERPROFILE\.local\bin",
+            "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin"
+          )) {
+            if ($userPath -and (($userPath -split ';') -contains $forbiddenEntry)) {
+              throw "User PATH still contains '$forbiddenEntry' after uninstall."
+            }
+          }
+
+          foreach ($pattern in @('\\Python313(\\Scripts)?$', '\\Python\\3\.13\.12\\(x64|arm64)(\\Scripts)?$')) {
+            if ($userPath -and (($userPath -split ';') | Where-Object { $_ -match $pattern })) {
+              throw "User PATH still contains a Python 3.13.12 entry matching '$pattern' after uninstall."
+            }
+          }
+
+          foreach ($pathToRemove in @(
+            "$env:USERPROFILE\.local\gh",
+            "$env:USERPROFILE\.local\bin\gh.exe",
+            "$env:USERPROFILE\.local\bin\uv.exe",
+            "$env:USERPROFILE\.local\bin\uvx.exe",
+            "$env:USERPROFILE\.local\bin\uvw.exe",
+            "$env:APPDATA\npm\claude",
+            "$env:APPDATA\npm\claude.cmd",
+            "$env:APPDATA\npm\claude.ps1",
+            "$env:APPDATA\npm\codex",
+            "$env:APPDATA\npm\codex.cmd",
+            "$env:APPDATA\npm\codex.ps1",
+            "$env:APPDATA\npm\node_modules\@anthropic-ai\claude-code",
+            "$env:APPDATA\npm\node_modules\@openai\codex"
+          )) {
+            if (Test-Path $pathToRemove) {
+              throw "Expected uninstall cleanup to remove '$pathToRemove'."
+            }
+          }
+
   test-windows-arm-full-install:
     runs-on: windows-11-arm
     name: Test Windows ARM Full Installation
@@ -177,6 +217,46 @@ jobs:
         run: |
           $env:CI = "true"
           .\windows-uninstall-ai-tools.ps1
+
+      - name: Verify uninstall cleanup
+        shell: powershell
+        run: |
+          $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+          foreach ($forbiddenEntry in @(
+            "$env:APPDATA\npm",
+            "$env:USERPROFILE\.local\bin",
+            "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin"
+          )) {
+            if ($userPath -and (($userPath -split ';') -contains $forbiddenEntry)) {
+              throw "User PATH still contains '$forbiddenEntry' after uninstall."
+            }
+          }
+
+          foreach ($pattern in @('\\Python313(\\Scripts)?$', '\\Python\\3\.13\.12\\(x64|arm64)(\\Scripts)?$')) {
+            if ($userPath -and (($userPath -split ';') | Where-Object { $_ -match $pattern })) {
+              throw "User PATH still contains a Python 3.13.12 entry matching '$pattern' after uninstall."
+            }
+          }
+
+          foreach ($pathToRemove in @(
+            "$env:USERPROFILE\.local\gh",
+            "$env:USERPROFILE\.local\bin\gh.exe",
+            "$env:USERPROFILE\.local\bin\uv.exe",
+            "$env:USERPROFILE\.local\bin\uvx.exe",
+            "$env:USERPROFILE\.local\bin\uvw.exe",
+            "$env:APPDATA\npm\claude",
+            "$env:APPDATA\npm\claude.cmd",
+            "$env:APPDATA\npm\claude.ps1",
+            "$env:APPDATA\npm\codex",
+            "$env:APPDATA\npm\codex.cmd",
+            "$env:APPDATA\npm\codex.ps1",
+            "$env:APPDATA\npm\node_modules\@anthropic-ai\claude-code",
+            "$env:APPDATA\npm\node_modules\@openai\codex"
+          )) {
+            if (Test-Path $pathToRemove) {
+              throw "Expected uninstall cleanup to remove '$pathToRemove'."
+            }
+          }
 
   test-windows:
     runs-on: windows-latest
