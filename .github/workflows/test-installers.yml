@@ -54,6 +54,55 @@ jobs:
           $env:CI = "true"
           .\windows-uninstall-ai-tools.ps1
 
+  test-windows-arm-full-install:
+    runs-on: windows-11-arm
+    name: Test Windows ARM Full Installation
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Windows ARM installer
+        shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          Write-Host "Running FULL Windows ARM installation test..." -ForegroundColor Cyan
+          Write-Host "Processor architecture: $env:PROCESSOR_ARCHITECTURE" -ForegroundColor Gray
+          Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
+          .\windows-install-ai-tools.ps1
+
+      - name: Verify installed commands
+        shell: powershell
+        run: |
+          git --version
+          bash --version
+          node --version
+          npm --version
+          gh --version
+          uv --version
+          python --version
+          $codeCommand = @(
+            "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin\code.cmd",
+            "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin\code.exe",
+            "$env:ProgramFiles\Microsoft VS Code\bin\code.cmd",
+            "$env:ProgramFiles\Microsoft VS Code\bin\code.exe",
+            "${env:ProgramFiles(x86)}\Microsoft VS Code\bin\code.cmd",
+            "${env:ProgramFiles(x86)}\Microsoft VS Code\bin\code.exe"
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $codeCommand) {
+            throw "VS Code CLI was not found after installation."
+          }
+          & $codeCommand --version
+          claude --version
+          codex --version
+
+      - name: Test uninstall script
+        shell: powershell
+        run: |
+          $env:CI = "true"
+          .\windows-uninstall-ai-tools.ps1
+
   test-windows:
     runs-on: windows-latest
     name: Test Windows Installer
@@ -70,6 +119,8 @@ jobs:
 
       - name: Test script logic
         shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
             throw "winget is required on Windows runners."
@@ -85,9 +136,10 @@ jobs:
             throw "Could not resolve Microsoft.VisualStudioCode package information."
           }
 
-          $ghPackage = winget show --exact --id GitHub.cli --accept-source-agreements | Out-String
-          if ($ghPackage -notmatch "GitHub\.cli") {
-            throw "Could not resolve GitHub.cli package information."
+          $release = Invoke-RestMethod -Headers @{ Authorization = "Bearer $env:GITHUB_TOKEN" } -Uri "https://api.github.com/repos/cli/cli/releases/latest"
+          $asset = $release.assets | Where-Object { $_.name -match '^gh_.*_windows_amd64\.zip$' } | Select-Object -First 1
+          if (-not $asset) {
+            throw "Could not resolve the latest GitHub CLI Windows asset."
           }
 
   test-macos-full-install:

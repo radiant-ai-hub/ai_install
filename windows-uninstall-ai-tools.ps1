@@ -79,11 +79,12 @@ Write-Host ""
 
 Write-Host "Step 3: Removing winget-installed packages..." -ForegroundColor Yellow
 if (Get-Command winget -ErrorAction SilentlyContinue) {
-    Winget-UninstallIfPresent "GitHub.cli"
     Winget-UninstallIfPresent "OpenJS.NodeJS.LTS"
     Winget-UninstallIfPresent "Microsoft.VisualStudioCode"
     Winget-UninstallIfPresent "Git.Git"
 }
+Remove-IfPresent "$env:USERPROFILE\.local\gh"
+Remove-IfPresent "$env:USERPROFILE\.local\bin\gh.exe"
 Remove-UserPathEntry "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin"
 Write-Host ""
 

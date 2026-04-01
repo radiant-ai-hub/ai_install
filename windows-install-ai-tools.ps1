@@ -38,6 +38,17 @@ function Ensure-UserPathEntry {
     Refresh-Path
 }
 
+function Get-WindowsArchitecture {
+    $arch = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
+
+    switch -Regex ($arch.ToUpperInvariant()) {
+        '^ARM64$' { return 'arm64' }
+        '^AMD64$' { return 'amd64' }
+        '^X86$' { return '386' }
+        default { throw "Unsupported Windows architecture: $arch" }
+    }
+}
+
 function Find-VSCodeCommand {
     $candidates = @(
         "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin\code.cmd",
@@ -107,6 +118,51 @@ function Install-OrUpgradeWingetPackage {
         $installArgs += @("--override", $OverrideArgs)
     }
     & winget @installArgs
+}
+
+function Install-GitHubCli {
+    Write-Host "Step 4: Installing GitHub CLI..." -ForegroundColor Yellow
+
+    $arch = Get-WindowsArchitecture
+    $token = if ($env:GITHUB_TOKEN) { $env:GITHUB_TOKEN } elseif ($env:GH_TOKEN) { $env:GH_TOKEN } else { $null }
+    $headers = @{}
+    if ($token) {
+        $headers["Authorization"] = "Bearer $token"
+    }
+
+    $release = Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/cli/cli/releases/latest"
+    $assetName = "gh_{0}_windows_{1}.zip" -f ($release.tag_name -replace '^v', ''), $arch
+    $asset = $release.assets | Where-Object { $_.name -eq $assetName } | Select-Object -First 1
+
+    if (-not $asset) {
+        throw "Could not find GitHub CLI asset '$assetName' in the latest release."
+    }
+
+    $installDir = Join-Path $env:USERPROFILE ".local\gh"
+    $binDir = Join-Path $env:USERPROFILE ".local\bin"
+    $zipPath = Join-Path $env:TEMP "gh-$arch.zip"
+    $extractDir = Join-Path $env:TEMP "gh-$arch"
+
+    Remove-Item -Path $zipPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $extractDir -Recurse -Force -ErrorAction SilentlyContinue
+
+    Write-Host "   Downloading GitHub CLI for $arch..." -ForegroundColor Gray
+    Invoke-WebRequest -Headers $headers -Uri $asset.browser_download_url -OutFile $zipPath
+    Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
+
+    $ghExe = Get-ChildItem -Path $extractDir -Filter gh.exe -Recurse | Select-Object -First 1
+    if (-not $ghExe) {
+        throw "Could not locate gh.exe in the downloaded archive."
+    }
+
+    New-Item -ItemType Directory -Path $installDir -Force | Out-Null
+    New-Item -ItemType Directory -Path $binDir -Force | Out-Null
+    Copy-Item -Path $ghExe.FullName -Destination (Join-Path $installDir "gh.exe") -Force
+    Copy-Item -Path (Join-Path $installDir "gh.exe") -Destination (Join-Path $binDir "gh.exe") -Force
+
+    Ensure-UserPathEntry $binDir
+    Refresh-Path
+    Write-Host ""
 }
 
 function Install-Uv {
@@ -191,13 +247,7 @@ Ensure-UserPathEntry "$env:APPDATA\npm"
 Refresh-Path
 Write-Host ""
 
-Write-Host "Step 4: Installing GitHub CLI..." -ForegroundColor Yellow
-Install-OrUpgradeWingetPackage `
-    -Id "GitHub.cli" `
-    -Name "GitHub CLI"
-Refresh-Path
-Write-Host ""
-
+Install-GitHubCli
 Install-Uv
 
 Write-Host "Step 6: Installing UV-managed Python $DefaultPythonVersion..." -ForegroundColor Yellow
