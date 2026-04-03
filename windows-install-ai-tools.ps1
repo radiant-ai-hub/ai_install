@@ -218,15 +218,46 @@ function Backup-FileIfPresent {
 
 function Find-GitBashExecutable {
     $candidates = @(
+        "$env:LOCALAPPDATA\Programs\Git\bin\bash.exe",
+        "$env:LOCALAPPDATA\Programs\Git\git-bash.exe",
         "$env:ProgramFiles\Git\bin\bash.exe",
         "$env:ProgramFiles\Git\git-bash.exe",
         "${env:ProgramFiles(x86)}\Git\bin\bash.exe",
         "${env:ProgramFiles(x86)}\Git\git-bash.exe"
     )
 
-    foreach ($candidate in $candidates) {
-        if ($candidate -and (Test-Path $candidate)) {
+    $gitCommand = Get-Command git.exe -ErrorAction SilentlyContinue
+    if ($gitCommand) {
+        $gitCmdDir = Split-Path -Parent $gitCommand.Source
+        $gitRoot = Split-Path -Parent $gitCmdDir
+        $candidates += @(
+            (Join-Path $gitRoot "bin\bash.exe"),
+            (Join-Path $gitRoot "git-bash.exe")
+        )
+    }
+
+    foreach ($candidate in ($candidates | Where-Object { $_ } | Select-Object -Unique)) {
+        if (Test-Path $candidate) {
             return $candidate
+        }
+    }
+
+    $gitSearchRoots = @(
+        (Join-Path $env:LOCALAPPDATA "Programs"),
+        $env:ProgramFiles,
+        ${env:ProgramFiles(x86)}
+    ) | Where-Object { $_ -and (Test-Path $_) }
+
+    foreach ($root in ($gitSearchRoots | Select-Object -Unique)) {
+        $match = Get-ChildItem -Path $root -Filter bash.exe -Recurse -ErrorAction SilentlyContinue |
+            Where-Object {
+                $_.FullName -match '\\Git\\bin\\bash\.exe$' -or
+                $_.FullName -match '\\Git\\usr\\bin\\bash\.exe$'
+            } |
+            Sort-Object FullName |
+            Select-Object -ExpandProperty FullName -First 1
+        if ($match) {
+            return $match
         }
     }
 
@@ -605,6 +636,7 @@ Install-OrUpgradeWingetPackage `
     -Id "Git.Git" `
     -Name "Git for Windows" `
     -OverrideArgs "/VERYSILENT /NORESTART"
+Refresh-Path
 $GitBashPath = Find-GitBashExecutable
 Write-Host ""
 

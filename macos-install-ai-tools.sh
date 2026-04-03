@@ -77,13 +77,17 @@ remove_target() {
 install_symlink() {
   local source_path="$1"
   local target_path="$2"
+  local target_dir
 
-  mkdir -p "$(dirname "$target_path")"
+  target_dir="$(dirname "$target_path")"
+  if [[ ! -d "$target_dir" ]]; then
+    mkdir -p "$target_dir" 2>/dev/null || sudo mkdir -p "$target_dir"
+  fi
+
   if ln -sf "$source_path" "$target_path" 2>/dev/null; then
     return
   fi
 
-  sudo mkdir -p "$(dirname "$target_path")"
   sudo ln -sf "$source_path" "$target_path"
 }
 
