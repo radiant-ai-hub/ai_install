@@ -25,7 +25,7 @@ prompt_nonempty() {
   local value=""
 
   while [[ -z "$value" ]]; do
-    read -r -p "$prompt" value
+    read -r -p "$prompt" value </dev/tty
     if [[ -z "$value" ]]; then
       echo "Please enter a value."
     fi
@@ -39,7 +39,7 @@ prompt_yes_no() {
   local reply=""
 
   while true; do
-    read -r -p "$prompt" reply
+    read -r -p "$prompt" reply </dev/tty
     case "$reply" in
       [Yy] | [Yy][Ee][Ss])
         return 0
@@ -52,6 +52,19 @@ prompt_yes_no() {
         ;;
     esac
   done
+}
+
+prompt_with_default() {
+  local prompt="$1"
+  local default_value="$2"
+  local value=""
+
+  read -r -p "$prompt [$default_value]: " value </dev/tty
+  if [[ -z "$value" ]]; then
+    value="$default_value"
+  fi
+
+  printf '%s\n' "$value"
 }
 
 open_url() {
@@ -141,8 +154,7 @@ while true; do
   echo "Use your @ucsd.edu address."
 done
 
-read -r -p "Enter your Git commit name [$github_username]: " git_name
-git_name="${git_name:-$github_username}"
+git_name="$(prompt_with_default "Enter your Git commit name" "$github_username")"
 
 echo
 echo "Configuring Git..."

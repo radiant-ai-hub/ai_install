@@ -52,7 +52,7 @@ curl -sSL https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/macos
 Windows Git Bash:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/github-setup.sh | bash
+curl --ssl-no-revoke -sSL https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/github-setup.sh | bash
 ```
 
 The GitHub setup step:
@@ -64,7 +64,7 @@ The GitHub setup step:
 - opens `https://github.com/settings/ssh/new` and prompts the student to add the key
 - tests `ssh -T git@github.com`
 
-On Windows, run the GitHub setup command from Git Bash after the main Windows installer has installed Git for Windows.
+On Windows, run the GitHub setup command from Git Bash after the main Windows installer has installed Git for Windows. The command uses `curl --ssl-no-revoke` because Git Bash on Windows can otherwise fail TLS revocation checks against GitHub.
 
 ## Windows requirements
 

@@ -698,4 +698,4 @@ Write-Host "  6. Run 'codex login' to authenticate Codex."
 Write-Host ""
 Write-Host "GitHub setup command:" -ForegroundColor Cyan
 Write-Host "  Open Git Bash and run:"
-Write-Host "  curl -sSL https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/github-setup.sh | bash"
+Write-Host "  curl --ssl-no-revoke -sSL https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/github-setup.sh | bash"
