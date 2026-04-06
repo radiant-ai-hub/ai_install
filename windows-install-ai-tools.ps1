@@ -689,7 +689,13 @@ Write-Host ""
 Write-Host "Installation complete." -ForegroundColor Green
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Cyan
-Write-Host "  1. Launch VS Code."
-Write-Host "  2. Run 'gh auth login' if you want GitHub CLI auth."
-Write-Host "  3. Run 'claude' to authenticate Claude Code."
-Write-Host "  4. Run 'codex login' to authenticate Codex."
+Write-Host "  1. Create your GitHub.com account if you do not already have one."
+Write-Host "  2. Run the separate GitHub setup command from README.md to configure Git and SSH."
+Write-Host "  3. Launch VS Code."
+Write-Host "  4. Run 'gh auth login' if you want GitHub CLI auth."
+Write-Host "  5. Run 'claude' to authenticate Claude Code."
+Write-Host "  6. Run 'codex login' to authenticate Codex."
+Write-Host ""
+Write-Host "GitHub setup command:" -ForegroundColor Cyan
+Write-Host "  Open Git Bash and run:"
+Write-Host "  curl -sSL https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/github-setup.sh | bash"

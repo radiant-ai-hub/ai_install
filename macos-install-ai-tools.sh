@@ -301,7 +301,12 @@ echo
 echo "Installation complete."
 echo
 echo "Next steps:"
-echo "  1. Launch Visual Studio Code from Applications."
-echo "  2. Run 'gh auth login' if you want GitHub CLI auth."
-echo "  3. Run 'claude' to authenticate Claude Code."
-echo "  4. Run 'codex login' to authenticate Codex."
+echo "  1. Create your GitHub.com account if you do not already have one."
+echo "  2. Run the separate GitHub setup command from README.md to configure Git and SSH."
+echo "  3. Launch Visual Studio Code from Applications."
+echo "  4. Run 'gh auth login' if you want GitHub CLI auth."
+echo "  5. Run 'claude' to authenticate Claude Code."
+echo "  6. Run 'codex login' to authenticate Codex."
+echo
+echo "GitHub setup command:"
+echo "  curl -sSL https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/macos-setup-github.sh | bash"

@@ -13,7 +13,17 @@ Cross-platform install scripts for a teaching or onboarding setup centered on:
 
 The layout mirrors `radiant_install`: platform-specific install scripts plus GitHub Actions checks.
 
-## Quick start
+## Student flow
+
+1. Create your account at [GitHub.com](https://github.com/).
+2. Share or confirm your GitHub username with course staff.
+3. After your account exists, course staff can invite you to the [rsm-genai-2026 GitHub organization](https://github.com/rsm-genai-2026).
+4. Run the tools installer for your platform.
+5. Run the separate GitHub setup command for your platform to configure Git and SSH access.
+
+You do not need to wait for the organization invite to install the tools. The GitHub setup step configures your machine so you are ready once the invite is accepted.
+
+## Tool install
 
 macOS:
 
@@ -26,6 +36,35 @@ Windows PowerShell:
 ```powershell
 iwr -useb https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/windows-install-ai-tools.ps1 | iex
 ```
+
+## GitHub setup
+
+Run this after the tools installer finishes. This is a separate step from the main tool install.
+
+Separate command:
+
+macOS:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/macos-setup-github.sh | bash
+```
+
+Windows Git Bash:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/github-setup.sh | bash
+```
+
+The GitHub setup step:
+
+- asks the student to create a GitHub.com account first
+- records the student's GitHub username
+- configures global Git name and `@ucsd.edu` email
+- creates or reuses an `ed25519` SSH key
+- opens `https://github.com/settings/ssh/new` and prompts the student to add the key
+- tests `ssh -T git@github.com`
+
+On Windows, run the GitHub setup command from Git Bash after the main Windows installer has installed Git for Windows.
 
 ## Windows requirements
 
@@ -59,7 +98,9 @@ iwr -useb https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/windo
 ## Scripts
 
 - `macos-install-ai-tools.sh`
+- `macos-setup-github.sh`
 - `macos-uninstall-ai-tools.sh`
+- `github-setup.sh`
 - `windows-install-ai-tools.ps1`
 - `windows-uninstall-ai-tools.ps1`
 - `vscode/settings.json`
