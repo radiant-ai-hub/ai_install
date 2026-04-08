@@ -463,12 +463,12 @@ function Install-Uv {
         Write-Host "   uv already installed. Updating if possible..." -ForegroundColor Gray
         uv self update | Out-Host
     } else {
-        $uvInstallerContent = (Invoke-WebRequest https://astral.sh/uv/install.ps1).Content
+        $uvInstallerContent = Invoke-RestMethod https://astral.sh/uv/install.ps1
         if (-not $uvInstallerContent) {
             throw "Could not download the uv installer script."
         }
 
-        & ([scriptblock]::Create($uvInstallerContent))
+        Invoke-Expression $uvInstallerContent
     }
 
     Ensure-UserPathEntry "$env:USERPROFILE\.local\bin" -Prepend

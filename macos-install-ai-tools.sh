@@ -197,6 +197,31 @@ ensure_usr_local_permissions() {
   echo
 }
 
+ensure_npm_global_permissions() {
+  local npm_prefix npm_root npm_bin_dir
+
+  if ! command_exists npm; then
+    return
+  fi
+
+  npm_prefix="$(npm prefix -g 2>/dev/null || true)"
+  npm_root="$(npm root -g 2>/dev/null || true)"
+  npm_bin_dir=""
+
+  if [[ -n "$npm_prefix" ]]; then
+    npm_bin_dir="$npm_prefix/bin"
+  fi
+
+  echo "   Checking npm global install permissions..."
+  if [[ -n "$npm_root" ]]; then
+    ensure_directory_owner "$npm_root"
+  fi
+  if [[ -n "$npm_bin_dir" ]]; then
+    ensure_directory_owner "$npm_bin_dir"
+  fi
+  echo
+}
+
 install_xcode_command_line_tools() {
   echo "Step 2: Checking Xcode Command Line Tools..."
 
@@ -291,6 +316,7 @@ install_node() {
 
   sudo installer -pkg "$node_pkg_path" -target /
   check_success "Node.js installation"
+  ensure_npm_global_permissions
   echo
 }
 
