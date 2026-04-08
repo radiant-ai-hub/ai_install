@@ -4,6 +4,7 @@ Cross-platform install scripts for a teaching or onboarding setup centered on:
 
 - Visual Studio Code
 - GitHub CLI (`gh`)
+- Quarto by Posit
 - `uv`
 - Python 3.13.12
 - Claude Code
@@ -78,6 +79,9 @@ On Windows, run the GitHub setup command from Git Bash after the main Windows in
 
 - For day-to-day Windows work with `uv` and Python, this repo treats Git Bash as the preferred interactive shell. The installer itself still runs from PowerShell.
 - The Windows installer uses `winget` for Git, VS Code, Node.js LTS, and Python.
+- Quarto is installed from Posit's official Quarto release assets, not from a community package feed.
+- The installer fetches the latest stable Quarto release metadata at runtime, detects the local architecture, prefers an architecture-specific installer when Posit publishes one, and otherwise falls back to Posit's current single-installer-per-OS packages.
+- The Quarto installer download is verified against the published SHA-256 checksum before installation.
 - The Windows installer downloads GitHub CLI directly from the official `cli/cli` release assets, including the ARM64 build on Windows ARM devices.
 - The Windows installer uses the official `winget` package `Python.Python.3.13` pinned to version `3.13.12`, with architecture selection set to `arm64` on Windows ARM and `x64` on Intel/AMD Windows.
 - On Windows, the installer verifies that `python` resolves to the actual installed Python executable and not the Windows Store alias in `WindowsApps`.

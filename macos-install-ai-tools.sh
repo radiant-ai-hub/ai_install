@@ -3,6 +3,7 @@
 set -euo pipefail
 
 DEFAULT_PYTHON_VERSION="${DEFAULT_PYTHON_VERSION:-3.13.12}"
+QUARTO_RELEASES_API="https://api.github.com/repos/quarto-dev/quarto-cli/releases/latest"
 
 echo "Rady School of Management @ UCSD"
 echo "AI Coding Tools Installer for macOS"
@@ -34,6 +35,67 @@ check_success() {
     echo "   ERROR: $1 failed"
     exit 1
   fi
+}
+
+json_release_tag_name() {
+  local release_json="$1"
+
+  printf '%s' "$release_json" | node -e '
+    const fs = require("fs");
+    const release = JSON.parse(fs.readFileSync(0, "utf8"));
+    process.stdout.write(String(release.tag_name || "").replace(/^v/, ""));
+  '
+}
+
+json_find_asset_url() {
+  local release_json="$1"
+  shift
+
+  printf '%s' "$release_json" | node -e '
+    const fs = require("fs");
+    const release = JSON.parse(fs.readFileSync(0, "utf8"));
+    const candidates = process.argv.slice(1);
+    for (const candidate of candidates) {
+      const asset = release.assets.find((entry) => entry.name === candidate);
+      if (asset) {
+        process.stdout.write(asset.browser_download_url);
+        process.exit(0);
+      }
+    }
+    process.exit(1);
+  ' "$@"
+}
+
+find_quarto_command() {
+  local candidates=(
+    "$(command -v quarto 2>/dev/null || true)"
+    "/usr/local/bin/quarto"
+    "/opt/quarto/bin/quarto"
+    "/Applications/quarto/bin/quarto"
+    "$HOME/Applications/quarto/bin/quarto"
+  )
+  local candidate
+
+  for candidate in "${candidates[@]}"; do
+    if [[ -n "$candidate" && -x "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+ensure_quarto_command() {
+  local quarto_command=""
+  quarto_command="$(find_quarto_command || true)"
+
+  if [[ -z "$quarto_command" ]]; then
+    echo "   Quarto was installed, but the command could not be found in expected locations."
+    exit 1
+  fi
+
+  export PATH="$(dirname "$quarto_command"):$PATH"
 }
 
 ensure_path_entry() {
@@ -231,7 +293,7 @@ install_github_cli() {
 }
 
 install_uv() {
-  echo "Step 5: Installing uv..."
+  echo "Step 6: Installing uv..."
   if command_exists uv; then
     echo "   uv already installed. Updating if possible..."
     uv self update || true
@@ -242,6 +304,86 @@ install_uv() {
 
   ensure_path_entry "$HOME/.local/bin"
   check_success "uv installation"
+  echo
+}
+
+install_quarto() {
+  echo "Step 5: Installing Quarto..."
+
+  local arch release_json quarto_version checksums_asset_name checksums_url checksums_path
+  local asset_name_candidates quarto_url quarto_asset_name pkg_path expected_sha actual_sha
+  arch="$(uname -m)"
+  release_json="$(curl -fsSL "$QUARTO_RELEASES_API")"
+  quarto_version="$(json_release_tag_name "$release_json")"
+
+  if [[ -z "$quarto_version" ]]; then
+    echo "   Could not determine latest Quarto version."
+    exit 1
+  fi
+
+  case "$arch" in
+    arm64)
+      asset_name_candidates=(
+        "quarto-$quarto_version-macos-arm64.pkg"
+        "quarto-$quarto_version-macos-aarch64.pkg"
+        "quarto-$quarto_version-macos.pkg"
+      )
+      ;;
+    x86_64)
+      asset_name_candidates=(
+        "quarto-$quarto_version-macos-x64.pkg"
+        "quarto-$quarto_version-macos-amd64.pkg"
+        "quarto-$quarto_version-macos.pkg"
+      )
+      ;;
+    *)
+      echo "   Unsupported macOS architecture for Quarto: $arch"
+      exit 1
+      ;;
+  esac
+
+  if ! quarto_url="$(json_find_asset_url "$release_json" "${asset_name_candidates[@]}")"; then
+    echo "   Could not determine the correct Quarto installer for macOS $arch."
+    exit 1
+  fi
+
+  quarto_asset_name="${quarto_url##*/}"
+  checksums_asset_name="quarto-$quarto_version-checksums.txt"
+  checksums_url="$(json_find_asset_url "$release_json" "$checksums_asset_name")"
+
+  if [[ -z "$checksums_url" ]]; then
+    echo "   Could not determine the Quarto checksum file."
+    exit 1
+  fi
+
+  echo "   Detected macOS architecture: $arch"
+  echo "   Latest Quarto release: $quarto_version"
+  echo "   Using Quarto installer asset: $quarto_asset_name"
+
+  pkg_path="$TEMP_DIR/quarto.pkg"
+  checksums_path="$TEMP_DIR/quarto-checksums.txt"
+  curl -fsSL -o "$pkg_path" "$quarto_url"
+  check_success "Quarto download"
+  curl -fsSL -o "$checksums_path" "$checksums_url"
+  check_success "Quarto checksum download"
+
+  expected_sha="$(awk -v name="$quarto_asset_name" '$2 == name { print $1; exit }' "$checksums_path")"
+  if [[ -z "$expected_sha" ]]; then
+    echo "   Could not find a checksum for $quarto_asset_name."
+    exit 1
+  fi
+
+  actual_sha="$(shasum -a 256 "$pkg_path" | awk '{print $1}')"
+  if [[ "$actual_sha" != "$expected_sha" ]]; then
+    echo "   Quarto checksum verification failed."
+    echo "   Expected: $expected_sha"
+    echo "   Actual:   $actual_sha"
+    exit 1
+  fi
+
+  sudo installer -pkg "$pkg_path" -target /
+  check_success "Quarto installation"
+  ensure_quarto_command
   echo
 }
 
@@ -274,23 +416,25 @@ echo
 install_vscode
 install_node
 install_github_cli
+install_quarto
 install_uv
 
-echo "Step 6: Installing UV-managed Python $DEFAULT_PYTHON_VERSION..."
+echo "Step 7: Installing UV-managed Python $DEFAULT_PYTHON_VERSION..."
 uv python install --default "$DEFAULT_PYTHON_VERSION"
 check_success "Python installation"
 echo
 
-echo "Step 7: Installing Claude Code and Codex..."
+echo "Step 8: Installing Claude Code and Codex..."
 install_npm_package "@anthropic-ai/claude-code" "claude"
 install_npm_package "@openai/codex" "codex"
 echo
 
-echo "Step 8: Verifying installed tools..."
+echo "Step 9: Verifying installed tools..."
 verify_command "git" "git --version"
 verify_command "node" "node --version"
 verify_command "npm" "npm --version"
 verify_command "gh" "gh --version | head -n1"
+verify_command "quarto" "quarto --version | head -n1"
 verify_command "uv" "uv --version"
 verify_command "python" "python3 --version || python --version"
 verify_command "code" "code --version | head -n1"

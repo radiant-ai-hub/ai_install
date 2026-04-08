@@ -60,7 +60,13 @@ echo "Step 4: Removing GitHub CLI symlink..."
 remove_target "/usr/local/bin/gh"
 echo
 
-echo "Step 5: Removing Node.js files commonly installed by the macOS pkg..."
+echo "Step 5: Removing Quarto files..."
+remove_target "/usr/local/bin/quarto"
+remove_target "/Applications/quarto"
+remove_target "/opt/quarto"
+echo
+
+echo "Step 6: Removing Node.js files commonly installed by the macOS pkg..."
 remove_target "/usr/local/bin/node"
 remove_target "/usr/local/bin/npm"
 remove_target "/usr/local/bin/npx"

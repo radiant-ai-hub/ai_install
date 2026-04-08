@@ -7,6 +7,7 @@ $ProgressPreference = "SilentlyContinue"
 
 $DefaultPythonVersion = if ($env:DEFAULT_PYTHON_VERSION) { $env:DEFAULT_PYTHON_VERSION } else { "3.13.12" }
 $PythonWingetId = "Python.Python.3.13"
+$QuartoReleasesApi = "https://api.github.com/repos/quarto-dev/quarto-cli/releases/latest"
 $RepoRawBase = "https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main"
 $InstallerAssetCacheDir = Join-Path $env:TEMP "ai-install-assets"
 
@@ -85,6 +86,40 @@ function Get-CommandSource {
     }
 
     return $null
+}
+
+function Find-QuartoCommand {
+    $existing = Get-Command quarto -ErrorAction SilentlyContinue
+    $candidates = @()
+    if ($existing) {
+        $candidates += $existing.Source
+    }
+
+    $candidates += @(
+        "$env:ProgramFiles\Quarto\bin\quarto.cmd",
+        "$env:ProgramFiles\Quarto\bin\quarto.exe",
+        "${env:ProgramFiles(x86)}\Quarto\bin\quarto.cmd",
+        "${env:ProgramFiles(x86)}\Quarto\bin\quarto.exe"
+    )
+
+    foreach ($candidate in ($candidates | Where-Object { $_ } | Select-Object -Unique)) {
+        if (Test-Path $candidate) {
+            return $candidate
+        }
+    }
+
+    return $null
+}
+
+function Ensure-QuartoPath {
+    $quartoCommand = Find-QuartoCommand
+    if (-not $quartoCommand) {
+        throw "Quarto installed, but the CLI could not be found in expected locations."
+    }
+
+    Ensure-UserPathEntry (Split-Path -Parent $quartoCommand)
+    Refresh-Path
+    return $quartoCommand
 }
 
 function Find-InstalledPythonExecutable {
@@ -336,7 +371,7 @@ function Install-OrUpgradeWingetPackage {
 }
 
 function Install-Python {
-    Write-Host "Step 6: Installing Python $DefaultPythonVersion..." -ForegroundColor Yellow
+    Write-Host "Step 7: Installing Python $DefaultPythonVersion..." -ForegroundColor Yellow
 
     $arch = Get-WingetArchitecture
     $existingPython = Find-InstalledPythonExecutable
@@ -410,7 +445,7 @@ function Install-GitHubCli {
 }
 
 function Install-Uv {
-    Write-Host "Step 5: Installing uv..." -ForegroundColor Yellow
+    Write-Host "Step 6: Installing uv..." -ForegroundColor Yellow
     if (Get-Command uv -ErrorAction SilentlyContinue) {
         Write-Host "   uv already installed. Updating if possible..." -ForegroundColor Gray
         uv self update | Out-Host
@@ -422,6 +457,87 @@ function Install-Uv {
 
     Ensure-UserPathEntry "$env:USERPROFILE\.local\bin" -Prepend
     Refresh-Path
+    Write-Host ""
+}
+
+function Find-ReleaseAsset {
+    param(
+        [object]$Release,
+        [string[]]$CandidateNames
+    )
+
+    foreach ($candidateName in $CandidateNames) {
+        $asset = $Release.assets | Where-Object { $_.name -eq $candidateName } | Select-Object -First 1
+        if ($asset) {
+            return $asset
+        }
+    }
+
+    return $null
+}
+
+function Install-Quarto {
+    Write-Host "Step 5: Installing Quarto..." -ForegroundColor Yellow
+
+    $arch = Get-WindowsArchitecture
+    $release = Invoke-RestMethod -Uri $QuartoReleasesApi
+    $version = $release.tag_name -replace '^v', ''
+    if (-not $version) {
+        throw "Could not determine latest Quarto version."
+    }
+
+    $candidateNames = switch ($arch) {
+        "arm64" { @("quarto-$version-win-arm64.msi", "quarto-$version-windows-arm64.msi", "quarto-$version-win.msi") }
+        "amd64" { @("quarto-$version-win-x64.msi", "quarto-$version-win-amd64.msi", "quarto-$version-win.msi") }
+        "386" { @("quarto-$version-win-x86.msi", "quarto-$version-win-386.msi", "quarto-$version-win.msi") }
+        default { throw "Unsupported Windows architecture for Quarto: $arch" }
+    }
+
+    $installerAsset = Find-ReleaseAsset -Release $release -CandidateNames $candidateNames
+    if (-not $installerAsset) {
+        throw "Could not determine the correct Quarto installer for Windows $arch."
+    }
+
+    $checksumsAsset = Find-ReleaseAsset -Release $release -CandidateNames @("quarto-$version-checksums.txt")
+    if (-not $checksumsAsset) {
+        throw "Could not determine the Quarto checksum file."
+    }
+
+    Write-Host "   Detected Windows architecture: $arch" -ForegroundColor Gray
+    Write-Host "   Latest Quarto release: $version" -ForegroundColor Gray
+    Write-Host "   Using Quarto installer asset: $($installerAsset.name)" -ForegroundColor Gray
+
+    $msiPath = Join-Path $env:TEMP "quarto-$arch.msi"
+    $checksumsPath = Join-Path $env:TEMP "quarto-checksums.txt"
+    Remove-Item -Path $msiPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $checksumsPath -Force -ErrorAction SilentlyContinue
+
+    Invoke-WebRequest -Uri $installerAsset.browser_download_url -OutFile $msiPath
+    Invoke-WebRequest -Uri $checksumsAsset.browser_download_url -OutFile $checksumsPath
+
+    $expectedHash = $null
+    foreach ($line in (Get-Content $checksumsPath)) {
+        if ($line -match "^(?<sha>[0-9a-fA-F]{64})\s+(?<name>\S+)$" -and $Matches["name"] -eq $installerAsset.name) {
+            $expectedHash = $Matches["sha"].ToLowerInvariant()
+            break
+        }
+    }
+
+    if (-not $expectedHash) {
+        throw "Could not find a checksum for $($installerAsset.name)."
+    }
+
+    $actualHash = (Get-FileHash -Path $msiPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actualHash -ne $expectedHash) {
+        throw "Quarto checksum verification failed. Expected $expectedHash but found $actualHash."
+    }
+
+    & msiexec.exe /i $msiPath /qn /norestart
+    if ($LASTEXITCODE -ne 0) {
+        throw "Quarto installation failed with exit code $LASTEXITCODE."
+    }
+
+    $script:QuartoCommand = Ensure-QuartoPath
     Write-Host ""
 }
 
@@ -522,7 +638,7 @@ function Configure-VSCodeUserSetup {
         [string]$PythonCommand
     )
 
-    Write-Host "Step 8: Configuring VS Code..." -ForegroundColor Yellow
+    Write-Host "Step 9: Configuring VS Code..." -ForegroundColor Yellow
 
     $settingsSource = Get-InstallerAssetPath "vscode/settings.json"
     $keybindingsSource = Get-InstallerAssetPath "vscode/keybindings.json"
@@ -573,7 +689,7 @@ function Configure-WindowsTerminalGitBash {
             continue
         }
 
-        Write-Host "Step 9: Configuring Windows Terminal..." -ForegroundColor Yellow
+        Write-Host "Step 10: Configuring Windows Terminal..." -ForegroundColor Yellow
         Backup-FileIfPresent $settingsPath
 
         $settings = Read-JsonFile $settingsPath
@@ -606,7 +722,7 @@ function Configure-WindowsTerminalGitBash {
     }
 
     if (-not $configuredAny) {
-        Write-Host "Step 9: Configuring Windows Terminal..." -ForegroundColor Yellow
+        Write-Host "Step 10: Configuring Windows Terminal..." -ForegroundColor Yellow
         Write-Host "   Windows Terminal settings were not found. Skipping profile setup." -ForegroundColor Gray
         Write-Host ""
     }
@@ -657,6 +773,7 @@ Refresh-Path
 Write-Host ""
 
 Install-GitHubCli
+Install-Quarto
 Install-Uv
 $PythonCommand = $null
 Install-Python
@@ -664,7 +781,9 @@ $PythonCommand = Ensure-PythonCommand
 Refresh-Path
 Write-Host ""
 
-Write-Host "Step 7: Installing Claude Code and Codex..." -ForegroundColor Yellow
+$QuartoCommand = Ensure-QuartoPath
+
+Write-Host "Step 8: Installing Claude Code and Codex..." -ForegroundColor Yellow
 Install-NpmGlobalPackage -PackageName "@anthropic-ai/claude-code" -CommandName "claude"
 Install-NpmGlobalPackage -PackageName "@openai/codex" -CommandName "codex"
 Write-Host ""
@@ -672,12 +791,13 @@ Write-Host ""
 Configure-VSCodeUserSetup -CodeCommand $CodeCommand -GitBashPath $GitBashPath -PythonCommand $PythonCommand
 Configure-WindowsTerminalGitBash -GitBashPath $GitBashPath
 
-Write-Host "Step 10: Verifying installed tools..." -ForegroundColor Yellow
+Write-Host "Step 11: Verifying installed tools..." -ForegroundColor Yellow
 Verify-Command "git" { git --version | Out-Host }
 Verify-Command "bash" { bash --version | Select-Object -First 1 | Out-Host }
 Verify-Command "node" { node --version | Out-Host }
 Verify-Command "npm" { npm --version | Out-Host }
 Verify-Command "gh" { gh --version | Select-Object -First 1 | Out-Host }
+Verify-Command "quarto" { & $QuartoCommand --version | Select-Object -First 1 | Out-Host }
 Verify-Command "uv" { uv --version | Out-Host }
 Verify-Command "python" { python --version | Out-Host }
 Assert-NativeArmPython -PythonCommand $PythonCommand
