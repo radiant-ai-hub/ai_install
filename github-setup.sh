@@ -5,6 +5,7 @@ set -euo pipefail
 GITHUB_ACCOUNT_URL="https://github.com/"
 GITHUB_SSH_URL="https://github.com/settings/ssh/new"
 GITHUB_ORG_URL="https://github.com/rsm-genai-2026"
+GITHUB_ACCOUNT_SETTINGS_URL="https://github.com/settings/admin"
 
 detect_platform() {
   case "$(uname -s)" in
@@ -124,6 +125,42 @@ copy_key_to_clipboard() {
   echo "Could not copy the SSH public key automatically."
 }
 
+check_github_username_exists() {
+  local username="$1"
+  local platform="$2"
+  local profile_url="https://github.com/$username"
+  local http_status=""
+
+  echo "Checking required GitHub username..."
+  http_status="$(curl -L -s -o /dev/null -w "%{http_code}" "$profile_url" || true)"
+
+  case "$http_status" in
+    200)
+      echo "  Found $profile_url"
+      ;;
+    404)
+      echo "  GitHub username not found: $profile_url"
+      echo
+      echo "Your GitHub username must already be:"
+      echo "  $username"
+      echo
+      echo "Go to:"
+      echo "  $GITHUB_ACCOUNT_SETTINGS_URL"
+      echo "Use 'Change username' to fix this, then rerun this setup command."
+      echo
+      open_url "$GITHUB_ACCOUNT_SETTINGS_URL" "$platform"
+      exit 1
+      ;;
+    *)
+      echo "  Could not verify $profile_url (HTTP $http_status)."
+      echo "  Confirm that your GitHub username is $username, then rerun this setup command."
+      exit 1
+      ;;
+  esac
+
+  echo
+}
+
 show_public_key() {
   local key_path="$1"
 
@@ -193,6 +230,9 @@ while true; do
 done
 
 github_username="rsm-${git_email%@ucsd.edu}"
+
+echo
+check_github_username_exists "$github_username" "$platform"
 
 echo
 echo "Configuring Git..."
@@ -269,7 +309,7 @@ echo "$ssh_output"
 echo
 
 if [[ "$ssh_output" == *"successfully authenticated"* ]]; then
-  echo "SSH access is working."
+  echo "✅ SSH access is working."
   echo "Your required GitHub username for this course is:"
   echo "  $github_username"
   echo "If you have not yet accepted your organization invite, check:"
@@ -279,7 +319,7 @@ if [[ "$ssh_output" == *"successfully authenticated"* ]]; then
   exit 0
 fi
 
-echo "SSH access did not verify cleanly."
+echo "❌ SSH access did not verify cleanly."
 echo "Your required GitHub username for this course is:"
 echo "  $github_username"
 echo "Check that the SSH key was added to https://github.com/settings/keys and contact course staff if needed."

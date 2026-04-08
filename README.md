@@ -1,123 +1,99 @@
-# AI Coding Tools Installer
+# AI Tools Setup Guide
 
-Cross-platform install scripts for a teaching or onboarding setup centered on:
+Use this guide to set up the tools you will need for the course.
+
+You will install:
 
 - Visual Studio Code
 - GitHub CLI (`gh`)
-- Quarto by Posit
+- Quarto
 - `uv`
 - Python 3.13.12
 - Claude Code
 - Codex
-- Git for Windows / Git Bash on Windows
-- Git on macOS via Xcode Command Line Tools
+- Git and Git Bash on Windows
 
-The layout mirrors `radiant_install`: platform-specific install scripts plus GitHub Actions checks.
+## Before you start
 
-## Student flow
+1. Create a GitHub account at [GitHub.com](https://github.com/).
+2. Your GitHub username for this course must be:
+   `rsm-<first-part-of-your-ucsd-email>`
+3. Example:
+   If your UCSD email is `jsmith@ucsd.edu`, your GitHub username must be `rsm-jsmith`.
+4. If your GitHub username is not correct yet, change it at [github.com/settings/admin](https://github.com/settings/admin). Look for "Change username" on the GitHub page and click the button to change your username
+5. After your account is ready, course staff can invite you to the [rsm-genai-2026 GitHub organization](https://github.com/rsm-genai-2026).
 
-1. Create your account at [GitHub.com](https://github.com/).
-2. Share or confirm your GitHub username with course staff.
-3. After your account exists, course staff can invite you to the [rsm-genai-2026 GitHub organization](https://github.com/rsm-genai-2026).
-4. Run the tools installer for your platform.
-5. Run the separate GitHub setup command for your platform to configure Git and SSH access.
+You do not need to wait for the organization invite before installing the tools.
 
-You do not need to wait for the organization invite to install the tools. The GitHub setup step configures your machine so you are ready once the invite is accepted.
+## Step 1: Install the tools
 
-## Tool install
+Choose the instructions for your computer.
 
-macOS:
+### macOS
+
+1. Open the `Terminal` app.
+2. Run:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/macos-install-ai-tools.sh | bash
 ```
 
-Windows PowerShell:
+### Windows
+
+1. Open `PowerShell` as an Admin.
+2. Run:
 
 ```powershell
 iwr -useb https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/windows-install-ai-tools.ps1 | iex
 ```
 
-If PowerShell reports an execution policy error before the installer starts, use:
+If PowerShell gives an execution policy error before the installer starts, run this instead:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -Command "iwr -useb https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/windows-install-ai-tools.ps1 | iex"
 ```
 
-## GitHub setup
+## Step 2: Set up GitHub
 
-Run this after the tools installer finishes. This is a separate step from the main tool install.
+This is a separate step. Do it after the tool installer finishes.
 
-Separate command:
+### macOS or Linux
 
-macOS or Linux:
+Open `Terminal` and run:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/macos-setup-github.sh | bash
 ```
 
-Windows Git Bash:
+### Windows
+
+Open `Git Bash` and run:
 
 ```bash
 curl --ssl-no-revoke -sSL https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/github-setup.sh | bash
 ```
 
-The GitHub setup step:
+## What the GitHub setup does
 
-- asks the student to create a GitHub.com account first
-- derives the required GitHub username as `rsm-<first-part-of-ucsd-email>`
-- configures global Git `user.name` to that required username and `user.email` to the student's `@ucsd.edu` address
-- creates or reuses an SSH key, preferring `ed25519`
-- always prints the public key so the student can paste it into GitHub, even when reusing an existing key
-- opens `https://github.com/settings/ssh/new` and prompts the student to add the key
-- tests `ssh -T git@github.com`
+The GitHub setup script will:
 
-On Windows, run the GitHub setup command from Git Bash after the main Windows installer has installed Git for Windows. The command uses `curl --ssl-no-revoke` because Git Bash on Windows can otherwise fail TLS revocation checks against GitHub.
+- ask you to confirm that you already created a GitHub account
+- ask for your `@ucsd.edu` email address
+- determine your required GitHub username for the course as `rsm-<first-part-of-your-ucsd-email>`
+- check that `https://github.com/<your-course-username>` exists
+- if that page returns `404`, stop fix your username at [github.com/settings/admin](https://github.com/settings/admin)
+- configure Git on your computer with the correct name and email
+- create or reuse an SSH key
+- show you the SSH public key you need to paste into GitHub
+- open the GitHub SSH key page
+- test your SSH connection to GitHub
 
-## Windows requirements
+## Windows note
 
-- `winget` is required because Git, VS Code, and Node.js LTS are currently installed with `winget`.
-- `winget` is also required for the Python `Python.Python.3.13` install on Windows.
-- The installer checks for `winget` at startup and stops with instructions if it is missing.
-- If `winget` is not available, install Microsoft's App Installer package first.
+After the main Windows installer finishes, use `Git Bash` for the GitHub setup step. The GitHub command uses `curl --ssl-no-revoke` because Git Bash on Windows can otherwise fail when connecting to GitHub.
 
-## Notes
+## If something goes wrong
 
-- For day-to-day Windows work with `uv` and Python, this repo treats Git Bash as the preferred interactive shell. The installer itself still runs from PowerShell.
-- The Windows installer uses `winget` for Git, VS Code, Node.js LTS, and Python.
-- Quarto is installed from Posit's official Quarto release assets, not from a community package feed.
-- The installer fetches the latest stable Quarto release metadata at runtime, detects the local architecture, prefers an architecture-specific installer when Posit publishes one, and otherwise falls back to Posit's current single-installer-per-OS packages.
-- The Quarto installer download is verified against the published SHA-256 checksum before installation.
-- The Windows installer downloads GitHub CLI directly from the official `cli/cli` release assets, including the ARM64 build on Windows ARM devices.
-- The Windows installer uses the official `winget` package `Python.Python.3.13` pinned to version `3.13.12`, with architecture selection set to `arm64` on Windows ARM and `x64` on Intel/AMD Windows.
-- On Windows, the installer verifies that `python` resolves to the actual installed Python executable and not the Windows Store alias in `WindowsApps`.
-- On Windows, the installer copies the repo's `vscode/settings.json` and `vscode/keybindings.json` into the VS Code user profile, then installs the extensions listed in `vscode/extensions.txt`.
-- On Windows, VS Code is configured to use Git Bash as the default integrated terminal.
-- On Windows, the installer also adds a Git Bash profile to Windows Terminal when a Windows Terminal settings file is present.
-- On Windows, the uninstaller returns control to the current PowerShell session instead of terminating the host shell, and it explicitly removes the npm shims for `claude` and `codex` if they were installed.
-- On current VS Code builds, Copilot-related functionality may show up as built-in AI features plus `github.copilot-chat`, even when `github.copilot` is requested from the extensions list.
-- The Windows installer still requires `winget` overall because Git, VS Code, and Node.js are currently installed that way.
-- The macOS installer avoids Homebrew and downloads tools directly from official vendor sources, similar to `radiant_install`.
-- On macOS, the installer checks ownership of `/usr/local/bin` and `/usr/local/lib` and repairs it with `sudo chown -R "$(whoami)" ...` when those directories are not user-owned.
-- On macOS, the GitHub CLI binary is copied into `/usr/local/bin/gh`; it is no longer symlinked into a temporary directory.
-- On macOS, Git comes from Xcode Command Line Tools.
-- On Apple Silicon Macs, the installer uses the VS Code ARM DMG, not the universal build.
-- `uv` is installed from Astral's official standalone installer and can use the installed system Python on Windows.
-- The default Python version target is pinned to `3.13.12` to match the server.
-- Claude Code and Codex are installed with `npm`.
-- Anthropic's current Claude Code docs list Windows support via WSL. This repo still installs the CLI on Windows, but the supported Windows workflow should be considered WSL-first.
-- The Windows installer explicitly locates the VS Code CLI after install because `code` is not reliably added to `PATH` in GitHub Actions runners.
-
-## Scripts
-
-- `macos-install-ai-tools.sh`
-- `macos-setup-github.sh`
-- `macos-uninstall-ai-tools.sh`
-- `github-setup.sh`
-- `windows-install-ai-tools.ps1`
-- `windows-uninstall-ai-tools.ps1`
-- `vscode/settings.json`
-- `vscode/keybindings.json`
-- `vscode/extensions.txt`
-
-GitHub Actions runs both install and uninstall coverage on Windows full-install jobs, with cleanup checks for the user-scope files and PATH entries managed by these scripts.
+- If the installer stops with a permissions error on Windows, retry with the PowerShell command that includes `-ExecutionPolicy Bypass`.
+- If the GitHub setup says your required username does not exist, go to [github.com/settings/admin](https://github.com/settings/admin), use `Change username`, and then run the setup command again.
+- If you are on Windows and the GitHub step does not work in PowerShell, make sure you are running it in `Git Bash`, not PowerShell.
