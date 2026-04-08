@@ -11,7 +11,7 @@ echo "It does not remove Xcode Command Line Tools."
 echo
 
 if [[ "${CI:-false}" != "true" ]]; then
-  read -r -p "Type 'yes' to continue: " CONFIRM
+  read -r -p "Type 'yes' to continue: " CONFIRM </dev/tty
   if [[ "$CONFIRM" != "yes" ]]; then
     echo "Uninstall cancelled."
     exit 0
