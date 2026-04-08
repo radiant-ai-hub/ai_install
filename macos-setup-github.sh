@@ -4,11 +4,6 @@ set -euo pipefail
 
 REPO_RAW_BASE="https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main"
 
-if [[ "$(uname -s)" != "Darwin" ]]; then
-  echo "This GitHub setup command is intended for macOS."
-  exit 1
-fi
-
 runner_path=""
 if [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]]; then
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

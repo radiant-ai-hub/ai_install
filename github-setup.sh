@@ -11,6 +11,9 @@ detect_platform() {
     Darwin)
       echo "macos"
       ;;
+    Linux)
+      echo "linux"
+      ;;
     MINGW* | MSYS* | CYGWIN*)
       echo "windows"
       ;;
@@ -76,6 +79,11 @@ open_url() {
     return
   fi
 
+  if [[ "$platform" == "linux" ]] && command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$url" >/dev/null 2>&1 || true
+    return
+  fi
+
   if [[ "$platform" == "windows" ]] && command -v explorer.exe >/dev/null 2>&1; then
     explorer.exe "$url" >/dev/null 2>&1 || true
     return
@@ -101,10 +109,41 @@ copy_key_to_clipboard() {
     return
   fi
 
-  echo "Could not copy the SSH public key automatically. Copy it from the text below:"
-  echo
+  if [[ "$platform" == "linux" ]] && command -v wl-copy >/dev/null 2>&1; then
+    wl-copy <"$key_path"
+    echo "Your SSH public key has been copied to the clipboard."
+    return
+  fi
+
+  if [[ "$platform" == "linux" ]] && command -v xclip >/dev/null 2>&1; then
+    xclip -selection clipboard <"$key_path"
+    echo "Your SSH public key has been copied to the clipboard."
+    return
+  fi
+
+  echo "Could not copy the SSH public key automatically."
+}
+
+show_public_key() {
+  local key_path="$1"
+
+  echo "Paste this public key into GitHub."
+  echo "Copy the single line shown below."
   cat "$key_path"
   echo
+}
+
+generate_ssh_key() {
+  local private_key_path="$1"
+  local key_comment="$2"
+
+  if ssh-keygen -q -t ed25519 -f "$private_key_path" -C "$key_comment" -N ""; then
+    echo "ed25519"
+    return
+  fi
+
+  ssh-keygen -q -t rsa -b 4096 -f "$private_key_path" -C "$key_comment" -N ""
+  echo "rsa"
 }
 
 ensure_public_key() {
@@ -121,7 +160,7 @@ ensure_public_key() {
 platform="$(detect_platform)"
 
 if [[ "$platform" == "unsupported" ]]; then
-  echo "This GitHub setup script supports macOS and Git Bash on Windows."
+  echo "This GitHub setup script supports macOS, Linux, and Git Bash on Windows."
   exit 1
 fi
 
@@ -175,6 +214,7 @@ echo
 ssh_dir="$HOME/.ssh"
 private_key_path="$ssh_dir/id_ed25519"
 public_key_path="$private_key_path.pub"
+generated_key_type=""
 
 mkdir -p "$ssh_dir"
 chmod 700 "$ssh_dir"
@@ -189,11 +229,11 @@ if [[ -f "$private_key_path" ]]; then
     if [[ -f "$public_key_path" ]]; then
       mv "$public_key_path" "$public_key_path.$timestamp.bak"
     fi
-    ssh-keygen -t ed25519 -f "$private_key_path" -C "$github_username@rsm-genai-2026" -N ""
+    generated_key_type="$(generate_ssh_key "$private_key_path" "$git_email")"
   fi
 else
   echo "Generating a new SSH key..."
-  ssh-keygen -t ed25519 -f "$private_key_path" -C "$github_username@rsm-genai-2026" -N ""
+  generated_key_type="$(generate_ssh_key "$private_key_path" "$git_email")"
 fi
 
 chmod 600 "$private_key_path"
@@ -202,6 +242,13 @@ chmod 644 "$public_key_path"
 echo
 copy_key_to_clipboard "$public_key_path" "$platform"
 echo
+show_public_key "$public_key_path"
+
+if [[ -n "$generated_key_type" ]]; then
+  echo "Generated SSH key type: $generated_key_type"
+  echo
+fi
+
 echo "Add this key in GitHub:"
 echo "  1. Open $GITHUB_SSH_URL"
 echo "  2. Give the key a recognizable title"

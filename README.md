@@ -43,7 +43,7 @@ Run this after the tools installer finishes. This is a separate step from the ma
 
 Separate command:
 
-macOS:
+macOS or Linux:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/macos-setup-github.sh | bash
@@ -60,7 +60,8 @@ The GitHub setup step:
 - asks the student to create a GitHub.com account first
 - records the student's GitHub username
 - configures global Git name and `@ucsd.edu` email
-- creates or reuses an `ed25519` SSH key
+- creates or reuses an SSH key, preferring `ed25519`
+- always prints the public key so the student can paste it into GitHub, even when reusing an existing key
 - opens `https://github.com/settings/ssh/new` and prompts the student to add the key
 - tests `ssh -T git@github.com`
 
