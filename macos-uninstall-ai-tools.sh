@@ -31,9 +31,13 @@ remove_target() {
 
 echo "Step 1: Removing npm-installed CLIs..."
 if command_exists npm; then
-  npm uninstall -g @anthropic-ai/claude-code || true
-  npm uninstall -g @openai/codex || true
+  npm uninstall -g --prefix "$HOME/.local" @anthropic-ai/claude-code || true
+  npm uninstall -g --prefix "$HOME/.local" @openai/codex || true
 fi
+remove_target "$HOME/.local/bin/claude"
+remove_target "$HOME/.local/bin/codex"
+remove_target "$HOME/.local/lib/node_modules/@anthropic-ai"
+remove_target "$HOME/.local/lib/node_modules/@openai"
 echo
 
 echo "Step 2: Removing UV-managed Python and uv..."
