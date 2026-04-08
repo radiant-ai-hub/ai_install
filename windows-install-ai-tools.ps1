@@ -1,6 +1,8 @@
 # AI Coding Tools Installation Script for Windows
 # Run the latest version with:
 # iwr -useb https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/windows-install-ai-tools.ps1 | iex
+# If PowerShell reports an execution policy problem, run:
+# powershell -NoProfile -ExecutionPolicy Bypass -Command "iwr -useb https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/windows-install-ai-tools.ps1 | iex"
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
@@ -88,6 +90,19 @@ function Get-CommandSource {
     return $null
 }
 
+function Get-GitHubApiHeaders {
+    $headers = @{
+        "Accept" = "application/vnd.github+json"
+    }
+
+    $token = if ($env:GITHUB_TOKEN) { $env:GITHUB_TOKEN } elseif ($env:GH_TOKEN) { $env:GH_TOKEN } else { $null }
+    if ($token) {
+        $headers["Authorization"] = "Bearer $token"
+    }
+
+    return $headers
+}
+
 function Find-QuartoCommand {
     $existing = Get-Command quarto -ErrorAction SilentlyContinue
     $candidates = @()
@@ -96,6 +111,8 @@ function Find-QuartoCommand {
     }
 
     $candidates += @(
+        "$env:USERPROFILE\.local\quarto\bin\quarto.cmd",
+        "$env:USERPROFILE\.local\quarto\bin\quarto.exe",
         "$env:ProgramFiles\Quarto\bin\quarto.cmd",
         "$env:ProgramFiles\Quarto\bin\quarto.exe",
         "${env:ProgramFiles(x86)}\Quarto\bin\quarto.cmd",
@@ -403,11 +420,7 @@ function Install-GitHubCli {
     Write-Host "Step 4: Installing GitHub CLI..." -ForegroundColor Yellow
 
     $arch = Get-WindowsArchitecture
-    $token = if ($env:GITHUB_TOKEN) { $env:GITHUB_TOKEN } elseif ($env:GH_TOKEN) { $env:GH_TOKEN } else { $null }
-    $headers = @{}
-    if ($token) {
-        $headers["Authorization"] = "Bearer $token"
-    }
+    $headers = Get-GitHubApiHeaders
 
     $release = Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/cli/cli/releases/latest"
     $assetName = "gh_{0}_windows_{1}.zip" -f ($release.tag_name -replace '^v', ''), $arch
@@ -450,9 +463,12 @@ function Install-Uv {
         Write-Host "   uv already installed. Updating if possible..." -ForegroundColor Gray
         uv self update | Out-Host
     } else {
-        $UvInstaller = Join-Path $env:TEMP "uv-install.ps1"
-        Invoke-WebRequest https://astral.sh/uv/install.ps1 -OutFile $UvInstaller
-        powershell -ExecutionPolicy Bypass -File $UvInstaller
+        $uvInstallerContent = (Invoke-WebRequest https://astral.sh/uv/install.ps1).Content
+        if (-not $uvInstallerContent) {
+            throw "Could not download the uv installer script."
+        }
+
+        & ([scriptblock]::Create($uvInstallerContent))
     }
 
     Ensure-UserPathEntry "$env:USERPROFILE\.local\bin" -Prepend
@@ -480,16 +496,17 @@ function Install-Quarto {
     Write-Host "Step 5: Installing Quarto..." -ForegroundColor Yellow
 
     $arch = Get-WindowsArchitecture
-    $release = Invoke-RestMethod -Uri $QuartoReleasesApi
+    $headers = Get-GitHubApiHeaders
+    $release = Invoke-RestMethod -Headers $headers -Uri $QuartoReleasesApi
     $version = $release.tag_name -replace '^v', ''
     if (-not $version) {
         throw "Could not determine latest Quarto version."
     }
 
     $candidateNames = switch ($arch) {
-        "arm64" { @("quarto-$version-win-arm64.msi", "quarto-$version-windows-arm64.msi", "quarto-$version-win.msi") }
-        "amd64" { @("quarto-$version-win-x64.msi", "quarto-$version-win-amd64.msi", "quarto-$version-win.msi") }
-        "386" { @("quarto-$version-win-x86.msi", "quarto-$version-win-386.msi", "quarto-$version-win.msi") }
+        "arm64" { @("quarto-$version-win-arm64.zip", "quarto-$version-windows-arm64.zip", "quarto-$version-win.zip") }
+        "amd64" { @("quarto-$version-win-x64.zip", "quarto-$version-win-amd64.zip", "quarto-$version-win.zip") }
+        "386" { @("quarto-$version-win-x86.zip", "quarto-$version-win-386.zip", "quarto-$version-win.zip") }
         default { throw "Unsupported Windows architecture for Quarto: $arch" }
     }
 
@@ -507,12 +524,14 @@ function Install-Quarto {
     Write-Host "   Latest Quarto release: $version" -ForegroundColor Gray
     Write-Host "   Using Quarto installer asset: $($installerAsset.name)" -ForegroundColor Gray
 
-    $msiPath = Join-Path $env:TEMP "quarto-$arch.msi"
+    $zipPath = Join-Path $env:TEMP "quarto-$arch.zip"
     $checksumsPath = Join-Path $env:TEMP "quarto-checksums.txt"
-    Remove-Item -Path $msiPath -Force -ErrorAction SilentlyContinue
+    $installRoot = Join-Path $env:USERPROFILE ".local\quarto"
+    Remove-Item -Path $zipPath -Force -ErrorAction SilentlyContinue
     Remove-Item -Path $checksumsPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $installRoot -Recurse -Force -ErrorAction SilentlyContinue
 
-    Invoke-WebRequest -Uri $installerAsset.browser_download_url -OutFile $msiPath
+    Invoke-WebRequest -Uri $installerAsset.browser_download_url -OutFile $zipPath
     Invoke-WebRequest -Uri $checksumsAsset.browser_download_url -OutFile $checksumsPath
 
     $expectedHash = $null
@@ -527,17 +546,19 @@ function Install-Quarto {
         throw "Could not find a checksum for $($installerAsset.name)."
     }
 
-    $actualHash = (Get-FileHash -Path $msiPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $actualHash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($actualHash -ne $expectedHash) {
         throw "Quarto checksum verification failed. Expected $expectedHash but found $actualHash."
     }
 
-    & msiexec.exe /i $msiPath /qn /norestart
-    if ($LASTEXITCODE -ne 0) {
-        throw "Quarto installation failed with exit code $LASTEXITCODE."
-    }
+    New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
+    Expand-Archive -Path $zipPath -DestinationPath $installRoot -Force
 
     $script:QuartoCommand = Ensure-QuartoPath
+    if (-not $script:QuartoCommand) {
+        throw "Quarto installed, but the CLI could not be found in expected locations."
+    }
+
     Write-Host ""
 }
 
@@ -793,7 +814,7 @@ Configure-WindowsTerminalGitBash -GitBashPath $GitBashPath
 
 Write-Host "Step 11: Verifying installed tools..." -ForegroundColor Yellow
 Verify-Command "git" { git --version | Out-Host }
-Verify-Command "bash" { bash --version | Select-Object -First 1 | Out-Host }
+Verify-Command "bash" { & $GitBashPath --version | Select-Object -First 1 | Out-Host }
 Verify-Command "node" { node --version | Out-Host }
 Verify-Command "npm" { npm --version | Out-Host }
 Verify-Command "gh" { gh --version | Select-Object -First 1 | Out-Host }

@@ -136,6 +136,24 @@ remove_target() {
   fi
 }
 
+ensure_directory_owner() {
+  local path="$1"
+  local owner
+
+  if [[ ! -d "$path" ]]; then
+    mkdir -p "$path" 2>/dev/null || sudo mkdir -p "$path"
+  fi
+
+  owner="$(stat -f '%Su' "$path" 2>/dev/null || true)"
+  if [[ "$owner" == "$(whoami)" ]]; then
+    echo "   $path is already owned by $(whoami)"
+    return
+  fi
+
+  echo "   Updating ownership for $path to $(whoami)..."
+  sudo chown -R "$(whoami)" "$path"
+}
+
 install_symlink() {
   local source_path="$1"
   local target_path="$2"
@@ -153,8 +171,34 @@ install_symlink() {
   sudo ln -sf "$source_path" "$target_path"
 }
 
+install_binary() {
+  local source_path="$1"
+  local target_path="$2"
+  local target_dir
+
+  target_dir="$(dirname "$target_path")"
+  if [[ ! -d "$target_dir" ]]; then
+    mkdir -p "$target_dir" 2>/dev/null || sudo mkdir -p "$target_dir"
+  fi
+
+  if cp "$source_path" "$target_path" 2>/dev/null; then
+    chmod +x "$target_path"
+    return
+  fi
+
+  sudo cp "$source_path" "$target_path"
+  sudo chmod +x "$target_path"
+}
+
+ensure_usr_local_permissions() {
+  echo "Step 1: Checking /usr/local permissions..."
+  ensure_directory_owner "/usr/local/bin"
+  ensure_directory_owner "/usr/local/lib"
+  echo
+}
+
 install_xcode_command_line_tools() {
-  echo "Step 1: Checking Xcode Command Line Tools..."
+  echo "Step 2: Checking Xcode Command Line Tools..."
 
   if xcode-select -p >/dev/null 2>&1; then
     echo "   Xcode Command Line Tools already installed"
@@ -187,7 +231,7 @@ install_xcode_command_line_tools() {
 }
 
 install_vscode() {
-  echo "Step 2: Installing Visual Studio Code..."
+  echo "Step 3: Installing Visual Studio Code..."
 
   local arch vscode_url dmg_path mount_output volume_path app_path
   arch="$(uname -m)"
@@ -222,7 +266,7 @@ install_vscode() {
 }
 
 install_node() {
-  echo "Step 3: Installing Node.js LTS..."
+  echo "Step 4: Installing Node.js LTS..."
 
   local node_version node_pkg_url node_pkg_path
   node_version="$(
@@ -251,7 +295,7 @@ install_node() {
 }
 
 install_github_cli() {
-  echo "Step 4: Installing GitHub CLI..."
+  echo "Step 5: Installing GitHub CLI..."
 
   local arch asset_suffix release_json gh_url gh_zip extracted_dir
   arch="$(uname -m)"
@@ -287,13 +331,13 @@ install_github_cli() {
     exit 1
   fi
 
-  install_symlink "$extracted_dir/bin/gh" "/usr/local/bin/gh"
+  install_binary "$extracted_dir/bin/gh" "/usr/local/bin/gh"
   check_success "GitHub CLI installation"
   echo
 }
 
 install_uv() {
-  echo "Step 6: Installing uv..."
+  echo "Step 7: Installing uv..."
   if command_exists uv; then
     echo "   uv already installed. Updating if possible..."
     uv self update || true
@@ -308,12 +352,21 @@ install_uv() {
 }
 
 install_quarto() {
-  echo "Step 5: Installing Quarto..."
+  echo "Step 6: Installing Quarto..."
 
   local arch release_json quarto_version checksums_asset_name checksums_url checksums_path
   local asset_name_candidates quarto_url quarto_asset_name pkg_path expected_sha actual_sha
+  local -a api_curl_args
   arch="$(uname -m)"
-  release_json="$(curl -fsSL "$QUARTO_RELEASES_API")"
+
+  api_curl_args=(-H "Accept: application/vnd.github+json")
+  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    api_curl_args=(-H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json")
+  elif [[ -n "${GH_TOKEN:-}" ]]; then
+    api_curl_args=(-H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json")
+  fi
+
+  release_json="$(curl -fsSL "${api_curl_args[@]}" "$QUARTO_RELEASES_API")"
   quarto_version="$(json_release_tag_name "$release_json")"
 
   if [[ -z "$quarto_version" ]]; then
@@ -407,6 +460,7 @@ verify_command() {
   eval "$command_text"
 }
 
+ensure_usr_local_permissions
 install_xcode_command_line_tools
 
 echo "   Verifying git from Xcode Command Line Tools..."
@@ -419,17 +473,17 @@ install_github_cli
 install_quarto
 install_uv
 
-echo "Step 7: Installing UV-managed Python $DEFAULT_PYTHON_VERSION..."
+echo "Step 8: Installing UV-managed Python $DEFAULT_PYTHON_VERSION..."
 uv python install --default "$DEFAULT_PYTHON_VERSION"
 check_success "Python installation"
 echo
 
-echo "Step 8: Installing Claude Code and Codex..."
+echo "Step 9: Installing Claude Code and Codex..."
 install_npm_package "@anthropic-ai/claude-code" "claude"
 install_npm_package "@openai/codex" "codex"
 echo
 
-echo "Step 9: Verifying installed tools..."
+echo "Step 10: Verifying installed tools..."
 verify_command "git" "git --version"
 verify_command "node" "node --version"
 verify_command "npm" "npm --version"

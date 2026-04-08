@@ -38,6 +38,12 @@ Windows PowerShell:
 iwr -useb https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/windows-install-ai-tools.ps1 | iex
 ```
 
+If PowerShell reports an execution policy error before the installer starts, use:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "iwr -useb https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/windows-install-ai-tools.ps1 | iex"
+```
+
 ## GitHub setup
 
 Run this after the tools installer finishes. This is a separate step from the main tool install.
@@ -92,6 +98,8 @@ On Windows, run the GitHub setup command from Git Bash after the main Windows in
 - On current VS Code builds, Copilot-related functionality may show up as built-in AI features plus `github.copilot-chat`, even when `github.copilot` is requested from the extensions list.
 - The Windows installer still requires `winget` overall because Git, VS Code, and Node.js are currently installed that way.
 - The macOS installer avoids Homebrew and downloads tools directly from official vendor sources, similar to `radiant_install`.
+- On macOS, the installer checks ownership of `/usr/local/bin` and `/usr/local/lib` and repairs it with `sudo chown -R "$(whoami)" ...` when those directories are not user-owned.
+- On macOS, the GitHub CLI binary is copied into `/usr/local/bin/gh`; it is no longer symlinked into a temporary directory.
 - On macOS, Git comes from Xcode Command Line Tools.
 - On Apple Silicon Macs, the installer uses the VS Code ARM DMG, not the universal build.
 - `uv` is installed from Astral's official standalone installer and can use the installed system Python on Windows.

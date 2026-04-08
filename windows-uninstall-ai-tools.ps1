@@ -285,8 +285,10 @@ Remove-UserPathEntry "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin"
 Write-Host ""
 
 Write-Host "Step 4: Removing Quarto files..." -ForegroundColor Yellow
+Remove-IfPresent "$env:USERPROFILE\.local\quarto"
 Remove-IfPresent "$env:ProgramFiles\Quarto"
 Remove-IfPresent "${env:ProgramFiles(x86)}\Quarto"
+Remove-UserPathEntry "$env:USERPROFILE\.local\quarto\bin"
 Remove-UserPathEntry "$env:ProgramFiles\Quarto\bin"
 Remove-UserPathEntry "${env:ProgramFiles(x86)}\Quarto\bin"
 Write-Host ""
