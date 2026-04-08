@@ -182,7 +182,6 @@ if ! prompt_yes_no "Have you already created your GitHub.com account? (y/n): "; 
 fi
 
 echo
-github_username="$(prompt_nonempty "Enter your GitHub username: ")"
 git_email=""
 
 while true; do
@@ -193,12 +192,12 @@ while true; do
   echo "Use your @ucsd.edu address."
 done
 
-git_name="$(prompt_with_default "Enter your Git commit name" "$github_username")"
+github_username="rsm-${git_email%@ucsd.edu}"
 
 echo
 echo "Configuring Git..."
 git config --global user.email "$git_email"
-git config --global user.name "$git_name"
+git config --global user.name "$github_username"
 git config --global pull.rebase false
 git config --global init.defaultBranch main
 
@@ -271,6 +270,8 @@ echo
 
 if [[ "$ssh_output" == *"successfully authenticated"* ]]; then
   echo "SSH access is working."
+  echo "Your required GitHub username for this course is:"
+  echo "  $github_username"
   echo "If you have not yet accepted your organization invite, check:"
   echo "  $GITHUB_ORG_URL"
   echo
@@ -279,5 +280,7 @@ if [[ "$ssh_output" == *"successfully authenticated"* ]]; then
 fi
 
 echo "SSH access did not verify cleanly."
+echo "Your required GitHub username for this course is:"
+echo "  $github_username"
 echo "Check that the SSH key was added to https://github.com/settings/keys and contact course staff if needed."
 exit 1

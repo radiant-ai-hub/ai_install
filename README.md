@@ -58,8 +58,8 @@ curl --ssl-no-revoke -sSL https://raw.githubusercontent.com/radiant-ai-hub/ai_in
 The GitHub setup step:
 
 - asks the student to create a GitHub.com account first
-- records the student's GitHub username
-- configures global Git name and `@ucsd.edu` email
+- derives the required GitHub username as `rsm-<first-part-of-ucsd-email>`
+- configures global Git `user.name` to that required username and `user.email` to the student's `@ucsd.edu` address
 - creates or reuses an SSH key, preferring `ed25519`
 - always prints the public key so the student can paste it into GitHub, even when reusing an existing key
 - opens `https://github.com/settings/ssh/new` and prompts the student to add the key
