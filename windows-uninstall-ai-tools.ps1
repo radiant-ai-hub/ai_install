@@ -4,11 +4,33 @@ $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 $PythonWingetId = "Python.Python.3.13"
 
+function Write-BlankLine {
+    Write-Host ""
+}
+
+function Write-Section {
+    param([string]$Message)
+
+    Write-Host $Message -ForegroundColor Yellow
+}
+
+function Write-Detail {
+    param([string]$Message)
+
+    Write-Host "  $Message" -ForegroundColor Gray
+}
+
+function Write-Note {
+    param([string]$Message)
+
+    Write-Host $Message -ForegroundColor Yellow
+}
+
 if ($env:CI -ne "true") {
-    Write-Host "This removes the tools installed by this repo." -ForegroundColor Yellow
+    Write-Note "This removes the tools installed by this repo."
     $confirmation = Read-Host "Type 'yes' to continue"
     if ($confirmation -ne "yes") {
-        Write-Host "Uninstall cancelled." -ForegroundColor Yellow
+        Write-Note "Uninstall cancelled."
         exit 0
     }
 }
@@ -57,13 +79,13 @@ function Winget-UninstallIfPresent {
         }
 
         if ($output -match 'No installed package found matching input criteria') {
-            Write-Host "   $Id is not installed. Skipping." -ForegroundColor Gray
+            Write-Detail "$Id is not installed. Skipping."
             Reset-LastExitCode
             return
         }
 
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "   Warning: winget could not uninstall $Id cleanly. Continuing." -ForegroundColor Yellow
+            Write-Note "Warning: winget could not uninstall $Id cleanly. Continuing."
             Reset-LastExitCode
         }
     } catch {
@@ -192,14 +214,14 @@ function Uninstall-NpmGlobalPackage {
     $packageInstalled = $packagePath -and (Test-Path $packagePath)
 
     if ($packageInstalled) {
-        Write-Host "   Removing $PackageName..." -ForegroundColor Gray
+        Write-Detail "Removing $PackageName..."
         try {
             & npm uninstall -g $PackageName | Out-Host
         } catch {
         }
         Reset-LastExitCode
     } else {
-        Write-Host "   $PackageName is not installed. Skipping npm uninstall." -ForegroundColor Gray
+        Write-Detail "$PackageName is not installed. Skipping npm uninstall."
     }
 
     Remove-NpmCommandShims -Prefix $Prefix -CommandNames $CommandNames
@@ -240,7 +262,7 @@ function Remove-UserPathEntriesMatching {
     Refresh-Path
 }
 
-Write-Host "Step 1: Removing npm-installed CLIs..." -ForegroundColor Yellow
+Write-Section "Step 1: Removing npm-installed CLIs..."
 if (Get-Command npm -ErrorAction SilentlyContinue) {
     $npmPrefix = Get-NpmGlobalPrefix
     $npmModulesPath = Get-NpmGlobalModulesPath
@@ -249,11 +271,11 @@ if (Get-Command npm -ErrorAction SilentlyContinue) {
     Remove-UserPathEntry $npmPrefix
     Remove-UserPathEntry "$env:APPDATA\npm"
 } else {
-    Write-Host "   npm is not available. Skipping npm package removal." -ForegroundColor Gray
+    Write-Detail "npm is not available. Skipping npm package removal."
 }
-Write-Host ""
+Write-BlankLine
 
-Write-Host "Step 2: Removing Python and uv data..." -ForegroundColor Yellow
+Write-Section "Step 2: Removing Python and uv data..."
 if (Get-Command winget -ErrorAction SilentlyContinue) {
     Winget-UninstallIfPresent -Id $PythonWingetId -Source "winget"
 }
@@ -270,9 +292,9 @@ Remove-UserPathEntriesMatching @(
     '\\Python313(\\Scripts)?$',
     '\\Python\\3\.13\.12\\(x64|arm64)(\\Scripts)?$'
 )
-Write-Host ""
+Write-BlankLine
 
-Write-Host "Step 3: Removing winget-installed packages..." -ForegroundColor Yellow
+Write-Section "Step 3: Removing winget-installed packages..."
 if (Get-Command winget -ErrorAction SilentlyContinue) {
     Winget-UninstallIfPresent "OpenJS.NodeJS.LTS"
     Winget-UninstallIfPresent "Microsoft.VisualStudioCode"
@@ -282,15 +304,15 @@ if (Get-Command winget -ErrorAction SilentlyContinue) {
 Remove-IfPresent "$env:USERPROFILE\.local\gh"
 Remove-IfPresent "$env:USERPROFILE\.local\bin\gh.exe"
 Remove-UserPathEntry "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin"
-Write-Host ""
+Write-BlankLine
 
-Write-Host "Step 4: Removing Quarto files..." -ForegroundColor Yellow
+Write-Section "Step 4: Removing Quarto files..."
 Remove-IfPresent "$env:USERPROFILE\.local\quarto"
 Remove-IfPresent "$env:ProgramFiles\Quarto"
 Remove-IfPresent "${env:ProgramFiles(x86)}\Quarto"
 Remove-UserPathEntry "$env:USERPROFILE\.local\quarto\bin"
 Remove-UserPathEntry "$env:ProgramFiles\Quarto\bin"
 Remove-UserPathEntry "${env:ProgramFiles(x86)}\Quarto\bin"
-Write-Host ""
+Write-BlankLine
 
 Write-Host "Uninstall complete." -ForegroundColor Green
