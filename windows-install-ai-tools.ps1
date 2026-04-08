@@ -13,13 +13,35 @@ $QuartoReleasesApi = "https://api.github.com/repos/quarto-dev/quarto-cli/release
 $RepoRawBase = "https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main"
 $InstallerAssetCacheDir = Join-Path $env:TEMP "ai-install-assets"
 
+function Write-BlankLine {
+    Write-Host ""
+}
+
+function Write-Section {
+    param([string]$Message)
+
+    Write-Host $Message -ForegroundColor Yellow
+}
+
+function Write-Detail {
+    param([string]$Message)
+
+    Write-Host "  $Message" -ForegroundColor Gray
+}
+
+function Write-Note {
+    param([string]$Message)
+
+    Write-Host $Message -ForegroundColor Yellow
+}
+
 Write-Host "Rady School of Management @ UCSD" -ForegroundColor Cyan
 Write-Host "AI Coding Tools Installer for Windows" -ForegroundColor Cyan
 Write-Host "======================================" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "Note: Anthropic currently documents Claude Code support on Windows via WSL." -ForegroundColor Yellow
-Write-Host "This script still installs the CLI tools natively plus Git Bash." -ForegroundColor Yellow
-Write-Host ""
+Write-BlankLine
+Write-Note "Note: Anthropic currently documents Claude Code support on Windows via WSL."
+Write-Note "This script still installs the CLI tools natively plus Git Bash."
+Write-BlankLine
 
 function Refresh-Path {
     $machine = [Environment]::GetEnvironmentVariable("Path", "Machine")
@@ -375,11 +397,11 @@ function Install-OrUpgradeWingetPackage {
     )
 
     if (Test-WingetPackageInstalled -Id $Id) {
-        Write-Host "   $Name already installed. Skipping install." -ForegroundColor Gray
+        Write-Detail "$Name already installed. Skipping install."
         return
     }
 
-    Write-Host "   Installing $Name..." -ForegroundColor Gray
+    Write-Detail "Installing $Name..."
     $installArgs = @("install") + $commonArgs
     if ($OverrideArgs) {
         $installArgs += @("--override", $OverrideArgs)
@@ -388,18 +410,18 @@ function Install-OrUpgradeWingetPackage {
 }
 
 function Install-Python {
-    Write-Host "Step 7: Installing Python $DefaultPythonVersion..." -ForegroundColor Yellow
+    Write-Section "Step 7: Installing Python $DefaultPythonVersion..."
 
     $arch = Get-WingetArchitecture
     $existingPython = Find-InstalledPythonExecutable
 
     if ($existingPython) {
-        Write-Host "   Python $DefaultPythonVersion already available. Skipping install." -ForegroundColor Gray
-        Write-Host ""
+        Write-Detail "Python $DefaultPythonVersion already available. Skipping install."
+        Write-BlankLine
         return
     }
 
-    Write-Host "   Installing Python $DefaultPythonVersion for $arch via winget..." -ForegroundColor Gray
+    Write-Detail "Installing Python $DefaultPythonVersion for $arch via winget..."
     & winget install `
         --exact `
         --id $PythonWingetId `
@@ -413,11 +435,11 @@ function Install-Python {
         --disable-interactivity
 
     Refresh-Path
-    Write-Host ""
+    Write-BlankLine
 }
 
 function Install-GitHubCli {
-    Write-Host "Step 4: Installing GitHub CLI..." -ForegroundColor Yellow
+    Write-Section "Step 4: Installing GitHub CLI..."
 
     $arch = Get-WindowsArchitecture
     $headers = Get-GitHubApiHeaders
@@ -438,7 +460,7 @@ function Install-GitHubCli {
     Remove-Item -Path $zipPath -Force -ErrorAction SilentlyContinue
     Remove-Item -Path $extractDir -Recurse -Force -ErrorAction SilentlyContinue
 
-    Write-Host "   Downloading GitHub CLI for $arch..." -ForegroundColor Gray
+    Write-Detail "Downloading GitHub CLI for $arch..."
     Invoke-WebRequest -Headers $headers -Uri $asset.browser_download_url -OutFile $zipPath
     Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
 
@@ -454,13 +476,13 @@ function Install-GitHubCli {
 
     Ensure-UserPathEntry $binDir
     Refresh-Path
-    Write-Host ""
+    Write-BlankLine
 }
 
 function Install-Uv {
-    Write-Host "Step 6: Installing uv..." -ForegroundColor Yellow
+    Write-Section "Step 6: Installing uv..."
     if (Get-Command uv -ErrorAction SilentlyContinue) {
-        Write-Host "   uv already installed. Updating if possible..." -ForegroundColor Gray
+        Write-Detail "uv already installed. Updating if possible..."
         uv self update | Out-Host
     } else {
         $uvInstallerContent = Invoke-RestMethod https://astral.sh/uv/install.ps1
@@ -473,7 +495,7 @@ function Install-Uv {
 
     Ensure-UserPathEntry "$env:USERPROFILE\.local\bin" -Prepend
     Refresh-Path
-    Write-Host ""
+    Write-BlankLine
 }
 
 function Find-ReleaseAsset {
@@ -493,7 +515,7 @@ function Find-ReleaseAsset {
 }
 
 function Install-Quarto {
-    Write-Host "Step 5: Installing Quarto..." -ForegroundColor Yellow
+    Write-Section "Step 5: Installing Quarto..."
 
     $arch = Get-WindowsArchitecture
     $headers = Get-GitHubApiHeaders
@@ -520,9 +542,9 @@ function Install-Quarto {
         throw "Could not determine the Quarto checksum file."
     }
 
-    Write-Host "   Detected Windows architecture: $arch" -ForegroundColor Gray
-    Write-Host "   Latest Quarto release: $version" -ForegroundColor Gray
-    Write-Host "   Using Quarto installer asset: $($installerAsset.name)" -ForegroundColor Gray
+    Write-Detail "Detected Windows architecture: $arch"
+    Write-Detail "Latest Quarto release: $version"
+    Write-Detail "Using Quarto installer asset: $($installerAsset.name)"
 
     $zipPath = Join-Path $env:TEMP "quarto-$arch.zip"
     $checksumsPath = Join-Path $env:TEMP "quarto-checksums.txt"
@@ -559,7 +581,7 @@ function Install-Quarto {
         throw "Quarto installed, but the CLI could not be found in expected locations."
     }
 
-    Write-Host ""
+    Write-BlankLine
 }
 
 function Install-NpmGlobalPackage {
@@ -579,9 +601,9 @@ function Install-NpmGlobalPackage {
     }
 
     if ($installed) {
-        Write-Host "   Updating $PackageName..." -ForegroundColor Gray
+        Write-Detail "Updating $PackageName..."
     } else {
-        Write-Host "   Installing $PackageName..." -ForegroundColor Gray
+        Write-Detail "Installing $PackageName..."
     }
 
     npm install -g $PackageName | Out-Host
@@ -597,7 +619,7 @@ function Verify-Command {
         [scriptblock]$Script
     )
 
-    Write-Host "   Verifying $Name..." -ForegroundColor Gray
+    Write-Detail "Verifying $Name..."
     & $Script
 }
 
@@ -647,8 +669,8 @@ function Ensure-PythonCommand {
         throw "Expected Python $DefaultPythonVersion, but found '$pythonVersion'."
     }
 
-    Write-Host "   Python command source: $pythonSource" -ForegroundColor Gray
-    Write-Host "   Python executable: $pythonExecutable" -ForegroundColor Gray
+    Write-Detail "Python command source: $pythonSource"
+    Write-Detail "Python executable: $pythonExecutable"
     return $pythonExecutable
 }
 
@@ -659,7 +681,7 @@ function Configure-VSCodeUserSetup {
         [string]$PythonCommand
     )
 
-    Write-Host "Step 9: Configuring VS Code..." -ForegroundColor Yellow
+    Write-Section "Step 9: Configuring VS Code..."
 
     $settingsSource = Get-InstallerAssetPath "vscode/settings.json"
     $keybindingsSource = Get-InstallerAssetPath "vscode/keybindings.json"
@@ -689,11 +711,11 @@ function Configure-VSCodeUserSetup {
     Write-JsonFile -Path $settingsTarget -Object $settings
 
     foreach ($extension in (Get-Content $extensionsSource | Where-Object { $_ -and -not $_.StartsWith("#") })) {
-        Write-Host "   Installing VS Code extension: $extension" -ForegroundColor Gray
+        Write-Detail "Installing VS Code extension: $extension"
         & $CodeCommand --install-extension $extension --force | Out-Host
     }
 
-    Write-Host ""
+    Write-BlankLine
 }
 
 function Configure-WindowsTerminalGitBash {
@@ -710,7 +732,7 @@ function Configure-WindowsTerminalGitBash {
             continue
         }
 
-        Write-Host "Step 10: Configuring Windows Terminal..." -ForegroundColor Yellow
+        Write-Section "Step 10: Configuring Windows Terminal..."
         Backup-FileIfPresent $settingsPath
 
         $settings = Read-JsonFile $settingsPath
@@ -737,15 +759,15 @@ function Configure-WindowsTerminalGitBash {
         $filteredProfiles += $gitBashProfile
         Set-JsonProperty -Object $profiles -Name "list" -Value $filteredProfiles
         Write-JsonFile -Path $settingsPath -Object $settings
-        Write-Host "   Added Git Bash profile to Windows Terminal: $settingsPath" -ForegroundColor Gray
-        Write-Host ""
+        Write-Detail "Added Git Bash profile to Windows Terminal: $settingsPath"
+        Write-BlankLine
         $configuredAny = $true
     }
 
     if (-not $configuredAny) {
-        Write-Host "Step 10: Configuring Windows Terminal..." -ForegroundColor Yellow
-        Write-Host "   Windows Terminal settings were not found. Skipping profile setup." -ForegroundColor Gray
-        Write-Host ""
+        Write-Section "Step 10: Configuring Windows Terminal..."
+        Write-Detail "Windows Terminal settings were not found. Skipping profile setup."
+        Write-BlankLine
     }
 }
 
@@ -761,37 +783,37 @@ function Assert-NativeArmPython {
         throw "Expected a native ARM64 Python on Windows ARM, but found '$pythonPlatform'."
     }
 
-    Write-Host "   Verified native ARM64 Python platform: $pythonPlatform" -ForegroundColor Gray
+    Write-Detail "Verified native ARM64 Python platform: $pythonPlatform"
 }
 
 if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
     throw "winget is required on Windows for this installer. Install Microsoft's App Installer package if winget is missing."
 }
 
-Write-Host "Step 1: Installing Git for Windows (includes Git Bash)..." -ForegroundColor Yellow
+Write-Section "Step 1: Installing Git for Windows (includes Git Bash)..."
 Install-OrUpgradeWingetPackage `
     -Id "Git.Git" `
     -Name "Git for Windows" `
     -OverrideArgs "/VERYSILENT /NORESTART"
 Refresh-Path
 $GitBashPath = Find-GitBashExecutable
-Write-Host ""
+Write-BlankLine
 
-Write-Host "Step 2: Installing Visual Studio Code..." -ForegroundColor Yellow
+Write-Section "Step 2: Installing Visual Studio Code..."
 Install-OrUpgradeWingetPackage `
     -Id "Microsoft.VisualStudioCode" `
     -Name "Visual Studio Code" `
     -OverrideArgs "/VERYSILENT /MERGETASKS=!runcode,addtopath"
 $CodeCommand = Ensure-VSCodeCliPath
-Write-Host ""
+Write-BlankLine
 
-Write-Host "Step 3: Installing Node.js LTS..." -ForegroundColor Yellow
+Write-Section "Step 3: Installing Node.js LTS..."
 Install-OrUpgradeWingetPackage `
     -Id "OpenJS.NodeJS.LTS" `
     -Name "Node.js LTS"
 Ensure-UserPathEntry "$env:APPDATA\npm"
 Refresh-Path
-Write-Host ""
+Write-BlankLine
 
 Install-GitHubCli
 Install-Quarto
@@ -800,19 +822,19 @@ $PythonCommand = $null
 Install-Python
 $PythonCommand = Ensure-PythonCommand
 Refresh-Path
-Write-Host ""
+Write-BlankLine
 
 $QuartoCommand = Ensure-QuartoPath
 
-Write-Host "Step 8: Installing Claude Code and Codex..." -ForegroundColor Yellow
+Write-Section "Step 8: Installing Claude Code and Codex..."
 Install-NpmGlobalPackage -PackageName "@anthropic-ai/claude-code" -CommandName "claude"
 Install-NpmGlobalPackage -PackageName "@openai/codex" -CommandName "codex"
-Write-Host ""
+Write-BlankLine
 
 Configure-VSCodeUserSetup -CodeCommand $CodeCommand -GitBashPath $GitBashPath -PythonCommand $PythonCommand
 Configure-WindowsTerminalGitBash -GitBashPath $GitBashPath
 
-Write-Host "Step 11: Verifying installed tools..." -ForegroundColor Yellow
+Write-Section "Step 11: Verifying installed tools..."
 Verify-Command "git" { git --version | Out-Host }
 Verify-Command "bash" { & $GitBashPath --version | Select-Object -First 1 | Out-Host }
 Verify-Command "node" { node --version | Out-Host }
@@ -825,10 +847,10 @@ Assert-NativeArmPython -PythonCommand $PythonCommand
 Verify-Command "code" { & $CodeCommand --version | Select-Object -First 1 | Out-Host }
 Verify-Command "claude" { claude --version | Out-Host }
 Verify-Command "codex" { codex --version | Out-Host }
-Write-Host ""
+Write-BlankLine
 
 Write-Host "Installation complete." -ForegroundColor Green
-Write-Host ""
+Write-BlankLine
 Write-Host "Next steps:" -ForegroundColor Cyan
 Write-Host "  1. Create your GitHub.com account if you do not already have one."
 Write-Host "  2. Run the separate GitHub setup command from README.md to configure Git and SSH."
@@ -836,7 +858,7 @@ Write-Host "  3. Launch VS Code."
 Write-Host "  4. Run 'gh auth login' if you want GitHub CLI auth."
 Write-Host "  5. Run 'claude' to authenticate Claude Code."
 Write-Host "  6. Run 'codex login' to authenticate Codex."
-Write-Host ""
+Write-BlankLine
 Write-Host "GitHub setup command:" -ForegroundColor Cyan
 Write-Host "  Open Git Bash and run:"
 Write-Host "  curl --ssl-no-revoke -sSL https://raw.githubusercontent.com/radiant-ai-hub/ai_install/main/github-setup.sh | bash"
